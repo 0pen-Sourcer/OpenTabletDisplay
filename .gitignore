@@ -1,0 +1,24 @@
+# Build/release output
+build/
+dist/
+release/
+*.zip
+*.exe
+*.msi
+
+# Go
+*.test
+coverage.out
+
+# Local FSDL runtime/state
+runtime/
+enrollment.json
+install-state.json
+sunshine-webui.txt
+*.log
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
