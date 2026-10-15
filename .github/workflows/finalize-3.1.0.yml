@@ -1,0 +1,74 @@
+name: Finalize FSDL 3.1.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/finalize-3.1.0.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.repository == '0pen-Sourcer/fsdl'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v4
+        with:
+          ref: b6d488bffa07d0d5d6e40cb03acc23656d49643f
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build audited release package
+        run: ./scripts/build-release.sh
+
+      - name: Publish v3.1.0 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git ls-remote --exit-code --tags origin refs/tags/v3.1.0 >/dev/null 2>&1; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git tag -a v3.1.0 b6d488bffa07d0d5d6e40cb03acc23656d49643f -m 'FSDL v3.1.0'
+            git push origin v3.1.0
+          fi
+          if ! gh release view v3.1.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create v3.1.0 \
+              dist/FSDL-3.1.0-windows-x64.zip \
+              --repo "$GITHUB_REPOSITORY" \
+              --title 'FSDL v3.1.0' \
+              --generate-notes \
+              --verify-tag
+          fi
+
+      - name: Delete assistant scratch branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in \
+            oops-last-test \
+            please-ignore-this-test-branch \
+            publish-final-test \
+            publish-fsdl-3.1.0 \
+            publish-tree-test \
+            publish-tree-test-2 \
+            tmp-ignore \
+            tmp-tree \
+            tmp-tree2
+          do
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" >/dev/null 2>&1; then
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch"
+              echo "Deleted $branch"
+            fi
+          done
