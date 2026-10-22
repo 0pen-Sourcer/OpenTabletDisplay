@@ -1,6 +1,6 @@
 # Architecture
 
-FSDL is an orchestration layer. It deliberately does not implement its own video codec, Windows capture stack, or Android streaming client.
+OpenTabletDisplay (formerly FSDL) is an orchestration layer. It deliberately does not implement its own video codec, Windows capture stack, or Android streaming client.
 
 ```text
 Windows applications
@@ -14,7 +14,7 @@ Sunshine
 (capture, encode, input/audio host)
         │
         ▼
-FSDL transport
+OpenTabletDisplay transport
 (ADB + gnirehtet, TCP + UDP over USB)
         │
         ▼
@@ -22,9 +22,9 @@ Moonlight Android
 (decode, touch/input, audio)
 ```
 
-## Components FSDL owns
+## Components OpenTabletDisplay owns
 
-FSDL owns only the integration and lifecycle layer:
+OpenTabletDisplay owns only the integration and lifecycle layer:
 
 - dependency pinning, integrity checks, and install/update logic;
 - Android-device enrollment and safe multi-device selection;
@@ -34,11 +34,11 @@ FSDL owns only the integration and lifecycle layer:
 - reconnect behavior at Windows logon and after USB reconnects;
 - state/ownership tracking for conservative uninstall and rollback.
 
-FSDL does **not** modify Moonlight or Sunshine source code and does not bundle a fork of either project.
+OpenTabletDisplay does **not** modify Moonlight or Sunshine source code and does not bundle a fork of either project.
 
 ## Display selection
 
-Windows `DISPLAY1`, `DISPLAY2`, and DXGI enumeration order are not stable identifiers. FSDL therefore configures Sunshine using Sunshine's display-device GUID for the Virtual Display Driver. A public install fails rather than guessing when the VDD cannot be identified uniquely.
+Windows `DISPLAY1`, `DISPLAY2`, and DXGI enumeration order are not stable identifiers. OpenTabletDisplay therefore configures Sunshine using Sunshine's display-device GUID for the Virtual Display Driver. A public install fails rather than guessing when the VDD cannot be identified uniquely.
 
 Sunshine is configured to:
 
@@ -51,13 +51,13 @@ Sunshine is configured to:
 
 Android's ordinary USB tethering is intentionally not used. Some OEM tether implementations are asymmetric, and tethering also changes the host's network topology.
 
-FSDL instead uses:
+OpenTabletDisplay instead uses:
 
 1. ADB over the USB data connection.
 2. gnirehtet's Android VPN client and host relay.
 3. A `/32` route for the selected Sunshine host IPv4 only.
 
-Before reporting READY, FSDL tests from the actual Android client:
+Before reporting READY, OpenTabletDisplay tests from the actual Android client:
 
 - Sunshine `/serverinfo` over TCP;
 - Sunshine pairing/control TCP 47984;
@@ -68,18 +68,22 @@ This catches a transport that merely "started" but cannot actually carry a Moonl
 
 ## Host address identity
 
-The currently validated transport uses the host's active physical IPv4 as Sunshine/Moonlight's address identity, then routes that address through gnirehtet over USB. Android Wi-Fi may remain off and stream packets still travel over USB, but the Windows host currently needs an active physical IPv4/default route so FSDL has a stable address Sunshine can advertise.
+The currently validated transport uses the host's active physical IPv4 as Sunshine/Moonlight's address identity, then routes that address through gnirehtet over USB. Android Wi-Fi may remain off and stream packets still travel over USB, but the Windows host currently needs an active physical IPv4/default route so OpenTabletDisplay has a stable address Sunshine can advertise.
 
-A future release may remove that identity dependency with an FSDL-owned host-only address after that design has been hardware-validated. It is intentionally not shipped as an untested networking change.
+A future release may remove that identity dependency with an OpenTabletDisplay-owned host-only address after that design has been hardware-validated. It is intentionally not shipped as an untested networking change.
 
 ## Android enrollment
 
-The first single authorized Android device that completes FSDL's live TCP+UDP checks is persisted in `enrollment.json`. Thereafter FSDL selects only that serial and will not silently switch to another authorized phone/tablet.
+The first single authorized Android device that completes OpenTabletDisplay's live TCP+UDP checks is persisted in `enrollment.json`. Thereafter the runtime selects only that serial and will not silently switch to another authorized phone/tablet.
 
-`reset-device.cmd` clears this enrollment. `FSDL.exe enroll SERIAL` is available for explicit administrative selection.
+`reset-device.cmd` clears this enrollment. The current 3.x compatibility CLI remains `FSDL.exe enroll SERIAL`.
 
 ## Install ownership
 
-FSDL records whether Sunshine and VDD already existed. Default uninstall removes FSDL only. Optional dependency removal is allowed only for dependencies that install-state records as FSDL-owned.
+The runtime records whether Sunshine and VDD already existed. Default uninstall removes the OpenTabletDisplay/FSDL integration only. Optional dependency removal is allowed only for dependencies that install-state records as project-owned.
 
-Sunshine configuration restoration is compare-and-restore: a key is restored only if its current value still equals the value FSDL applied. User edits made after installation win.
+Sunshine configuration restoration is compare-and-restore: a key is restored only if its current value still equals the value the installer applied. User edits made after installation win.
+
+## Legacy runtime names
+
+OpenTabletDisplay is the public project name. The 3.x runtime intentionally retains some `FSDL` names for binary paths, state, scheduled tasks, and Go module imports so a documentation rebrand cannot break installed systems. Those internals should only move in a compatibility-planned major release.
