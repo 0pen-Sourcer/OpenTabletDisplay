@@ -1,6 +1,6 @@
 # Moonlight Android setup
 
-FSDL intentionally uses the official Moonlight Android client instead of maintaining a fork.
+OpenTabletDisplay (formerly FSDL) intentionally uses the official Moonlight Android client instead of maintaining a fork.
 
 ## One-time setup
 
@@ -8,8 +8,8 @@ FSDL intentionally uses the official Moonlight Android client instead of maintai
 2. Enable Android Developer options and **USB debugging**.
 3. Connect the Android device using a data-capable USB cable and approve the PC's RSA fingerprint.
 4. Leave Android's normal **USB tethering OFF**.
-5. Let the FSDL background agent establish the bridge. Approve gnirehtet's Android VPN/Connection request when Android asks.
-6. Add the host address printed by FSDL/status output if Moonlight has not already stored it.
+5. Let the OpenTabletDisplay background agent establish the bridge. Approve gnirehtet's Android VPN/Connection request when Android asks.
+6. Add the host address printed by `status.cmd` if Moonlight has not already stored it.
 7. Moonlight shows a short numeric pairing PIN. Enter that PIN on Sunshine's PIN page.
 
 The Sunshine Web UI username/password are **not** the Moonlight PIN.
@@ -34,7 +34,7 @@ After pairing and enrollment:
 plug USB → unlock Android if needed → open Moonlight → Desktop
 ```
 
-The FSDL agent is a hidden per-user task; no command window should remain open.
+The current 3.x OpenTabletDisplay agent still uses the legacy FSDL scheduled-task/runtime names internally for compatibility; no command window should remain open.
 
 ## Switching Android devices
 
