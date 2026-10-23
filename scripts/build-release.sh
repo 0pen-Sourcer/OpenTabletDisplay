@@ -3,7 +3,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 VERSION="$(awk -F'"' '/Version = / {print $2; exit}' internal/bridge/constants.go)"
-OUT="$ROOT/dist/FSDL-$VERSION-windows-x64"
+PACKAGE="OpenTabletDisplay-$VERSION-windows-x64"
+OUT="$ROOT/dist/$PACKAGE"
 rm -rf "$ROOT/dist"
 mkdir -p "$OUT/payload/probes" "$OUT/installer"
 
@@ -15,6 +16,7 @@ go test -race ./...
 go run ./cmd/fsdl --selftest
 
 echo '[2/6] Windows host binary'
+# Keep the 3.x runtime binary name for installed-system compatibility.
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o "$OUT/payload/FSDL.exe" ./cmd/fsdl
 
 echo '[3/6] Android live-test probes'
@@ -34,6 +36,6 @@ echo '[5/6] checksums'
 )
 
 echo '[6/6] zip'
-( cd "$ROOT/dist" && zip -qr "FSDL-$VERSION-windows-x64.zip" "FSDL-$VERSION-windows-x64" )
-sha256sum "$ROOT/dist/FSDL-$VERSION-windows-x64.zip"
-echo "Built: $ROOT/dist/FSDL-$VERSION-windows-x64.zip"
+( cd "$ROOT/dist" && zip -qr "$PACKAGE.zip" "$PACKAGE" )
+sha256sum "$ROOT/dist/$PACKAGE.zip"
+echo "Built: $ROOT/dist/$PACKAGE.zip"

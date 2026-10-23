@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — OpenTabletDisplay public rebrand
+
+- Public project name changed from **FSDL** to **OpenTabletDisplay** so the repository immediately communicates its purpose: use an Android tablet or phone as a real second Windows monitor over USB.
+- README rewritten around the end-user problem, installation flow, USB-vs-video-input explanation, architecture, limitations, and hardware-validated status.
+- Documentation now treats `FSDL` as the legacy/internal 3.x compatibility name rather than the product's public identity.
+- Runtime executable, install path, scheduled-task name, state files, and Go module imports are intentionally **not** renamed in this docs-first pass; that migration requires an explicit compatibility/rollback plan.
+
 ## 3.1.0 — GitHub-ready wired Android display release
 
 - Generalized FSDL from a single Lenovo test target to Android-over-ADB.

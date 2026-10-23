@@ -1,6 +1,8 @@
 # Contributing
 
-FSDL is an integration project. Prefer fixing the orchestration boundary instead of reimplementing Sunshine/Moonlight features.
+OpenTabletDisplay (formerly FSDL) is an integration project. Prefer fixing the orchestration boundary instead of reimplementing Sunshine/Moonlight features.
+
+The current 3.x codebase intentionally retains `fsdl` package/module/runtime names for compatibility. Do not perform a mechanical internal rename unless the change includes an explicit upgrade, rollback, installer, and state-migration plan.
 
 Before a PR:
 

@@ -2,10 +2,11 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 $versionLine = Select-String -LiteralPath 'internal\bridge\constants.go' -Pattern 'Version\s*=\s*"([^"]+)"' | Select-Object -First 1
-if (-not $versionLine) { throw 'Could not determine FSDL version.' }
+if (-not $versionLine) { throw 'Could not determine FSDL runtime version.' }
 $Version = $versionLine.Matches[0].Groups[1].Value
+$Package = 'OpenTabletDisplay-' + $Version + '-windows-x64'
 $DistRoot = Join-Path $Root 'dist'
-$Out = Join-Path $DistRoot ('FSDL-' + $Version + '-windows-x64')
+$Out = Join-Path $DistRoot $Package
 Remove-Item -LiteralPath $DistRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path (Join-Path $Out 'payload\probes'), (Join-Path $Out 'installer') | Out-Null
 
@@ -32,6 +33,7 @@ if ($LASTEXITCODE -ne 0) { throw 'selftest failed' }
 
 Write-Host '[3/7] Windows host binary'
 $env:GOOS='windows'; $env:GOARCH='amd64'; $env:CGO_ENABLED='0'
+# Keep the 3.x runtime binary name for installed-system compatibility.
 go build -trimpath -ldflags '-s -w' -o (Join-Path $Out 'payload\FSDL.exe') ./cmd/fsdl
 if ($LASTEXITCODE -ne 0) { throw 'Windows build failed' }
 
@@ -56,7 +58,7 @@ $rows = Get-ChildItem -LiteralPath $Out -File -Recurse | Where-Object { $_.FullN
 $rows | Set-Content -LiteralPath $checksumPath -Encoding ASCII
 
 Write-Host '[7/7] zip'
-$zip = Join-Path $DistRoot ('FSDL-' + $Version + '-windows-x64.zip')
+$zip = Join-Path $DistRoot ($Package + '.zip')
 Compress-Archive -LiteralPath $Out -DestinationPath $zip -CompressionLevel Optimal
 Write-Host ('SHA256 ' + (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant())
 Write-Host ('Built: ' + $zip)
