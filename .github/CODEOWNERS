@@ -1,0 +1,8 @@
+# Default owner for the OpenTabletDisplay integration layer.
+* @0pen-Sourcer
+
+# Release-critical and system-modifying paths.
+.github/workflows/ @0pen-Sourcer
+installer/ @0pen-Sourcer
+scripts/ @0pen-Sourcer
+internal/ @0pen-Sourcer
