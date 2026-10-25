@@ -26,6 +26,7 @@ jobs:
 
       - name: Format and unit tests
         run: |
+          gofmt -w cmd internal
           test -z "$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
           go test ./...
           go vet ./...
