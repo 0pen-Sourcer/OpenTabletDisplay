@@ -2,168 +2,148 @@
 
 [![CI](https://github.com/0pen-Sourcer/OpenTabletDisplay/actions/workflows/ci.yml/badge.svg)](https://github.com/0pen-Sourcer/OpenTabletDisplay/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/0pen-Sourcer/OpenTabletDisplay)](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)](docs/COMPATIBILITY.md)
 
-**Use an Android tablet or phone as a real second Windows monitor over USB.**
+![OpenTabletDisplay — Android as a real wired Windows second monitor](docs/assets/open-tablet-display-hero.svg)
 
-OpenTabletDisplay turns an ordinary Android device into an **extended Windows display** using the USB cable you already have. No HDMI input on the tablet is required, and the tablet's Wi-Fi can stay off while the display traffic travels over USB.
+**Turn an Android tablet or phone into a real extended Windows monitor over the USB cable you already have.**
 
-It is the public-facing name for the project previously called **FSDL**. The current 3.x runtime still keeps some `FSDL` executable, task, folder, and state names internally so existing installs remain compatible.
+OpenTabletDisplay gives Windows another display surface, captures that display with Sunshine, and carries the Sunshine/Moonlight session through a USB data path to Android. It is a **second monitor**, not a browser mirror.
 
-> **Normal use after setup:** plug in the USB cable → open Moonlight → launch **Desktop**.
+> **Everyday use after setup:** plug in USB → open Moonlight → launch **Desktop**.
 
-## What it does
+[**Download the latest Windows release**](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest) · [Compatibility](docs/COMPATIBILITY.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Report a device test](docs/DEVICE_TESTING.md)
 
-Your tablet does **not** need USB-C DisplayPort input or any special display hardware. OpenTabletDisplay creates a genuine virtual monitor inside Windows, captures only that monitor with Sunshine, and carries the Sunshine/Moonlight connection through a low-latency USB data path.
+## Why use it?
+
+Most Android tablets cannot accept raw DisplayPort/HDMI video through USB-C. OpenTabletDisplay treats USB as a **data connection** instead:
+
+- Windows sees a genuine virtual monitor that you can extend the desktop onto.
+- Sunshine handles mature low-latency capture and hardware encoding.
+- Moonlight handles mature Android hardware decode and input.
+- ADB + gnirehtet carry the required TCP and UDP traffic through USB.
+- OpenTabletDisplay owns the integration: install/reuse, device selection, health checks, reconnect, rollback and uninstall.
+
+No custom Android client and no home-grown video codec are required.
+
+## Architecture
 
 ```text
-Windows desktop
-      │
-      ▼
+Windows applications
+        │
+        ▼
 Virtual Display Driver
-(real extended Windows monitor)
-      │
-      ▼
+(real extended desktop surface)
+        │
+        ▼
 Sunshine
-(capture + hardware encoder when available)
-      │
-      ▼
+(capture + hardware encode)
+        │
+        ▼
 OpenTabletDisplay USB bridge
 (ADB + gnirehtet, TCP + UDP)
-      │
-      ▼
+        │
+        ▼
 ordinary USB data cable
-      │
-      ▼
+        │
+        ▼
 Moonlight for Android
 (hardware decode + input)
-      │
-      ▼
+        │
+        ▼
 Android tablet / phone
 ```
 
-This is an **extended desktop**, not a browser mirror. Windows gets another display surface that you can arrange beside your physical monitor and move normal windows onto.
-
-## Why this project exists
-
-There are already excellent pieces for the difficult media work:
-
-- **Sunshine** provides mature low-latency Windows capture and hardware encoding.
-- **Moonlight** provides a mature Android decoder and input client.
-- **Virtual Display Driver** provides the real Windows display surface.
-- **ADB + gnirehtet** provide a wired Android data path that can carry both TCP and UDP.
-
-OpenTabletDisplay deliberately does **not** reimplement those projects. It owns the integration and lifecycle work needed to make them behave like one USB second-monitor system:
-
-- installs or reuses a signed Windows virtual display;
-- installs or reuses Sunshine;
-- identifies the virtual monitor using Sunshine's stable device GUID instead of guessing from unstable `DISPLAYn` numbers;
-- creates a USB-only path for the Sunshine/Moonlight traffic;
-- verifies the real Android-to-Windows TCP **and UDP** path before reporting the bridge healthy;
-- remembers the enrolled Android display instead of silently switching to another authorized device;
-- keeps the bridge alive across Windows logon and cable reconnects;
-- makes the virtual display primary only when required for the Moonlight session, then restores the normal desktop layout;
-- lets the client request resolution and refresh rate instead of baking in one tablet model;
-- preserves existing Sunshine credentials and pairings;
-- backs up only the settings it changes;
-- uninstalls by recorded ownership instead of wildcard-deleting drivers or processes.
+The virtual display is selected using Sunshine's stable display-device GUID rather than guessing from unstable Windows `DISPLAYn` numbering.
 
 ## Highlights
 
-- **Real second monitor:** extend the Windows desktop instead of merely mirroring a physical screen.
-- **USB-first:** stream traffic runs through the Android USB data connection; tablet Wi-Fi may remain off.
-- **No video-input port required:** works as software over USB data rather than relying on USB-C DisplayPort/HDMI input support.
-- **Hardware accelerated:** Sunshine can use NVENC/other supported hardware encoders and Moonlight uses the Android hardware decoder.
-- **No custom Android client to maintain:** use the official Moonlight app.
-- **Background reconnect:** no bridge console needs to remain open for everyday use.
-- **Device-model agnostic:** no Lenovo-specific IDs or hard-coded tablet resolution assumptions.
-- **Conservative install/uninstall:** existing Sunshine/VDD installs are reused and user-owned configuration wins.
-- **Open source:** the OpenTabletDisplay integration layer is MIT licensed.
+- **Real extended desktop** — move ordinary Windows apps onto the Android display.
+- **USB-first transport** — Android Wi-Fi may remain off for display traffic.
+- **Hardware accelerated** — Sunshine can use supported GPU encoders; Moonlight uses Android hardware decode.
+- **Background reconnect** — no bridge console needs to stay open during normal use.
+- **Device enrollment** — a second debugging-enabled phone cannot silently hijack the session.
+- **Client-driven display mode** — no hard-coded Lenovo resolution or device ID.
+- **Live transport verification** — real Android-side Sunshine TCP checks plus UDP relay verification before READY.
+- **Existing installs respected** — compatible Sunshine/VDD installations are reused instead of duplicated.
+- **Conservative rollback/uninstall** — changes are tracked by ownership rather than wildcard-deleting drivers, processes or user configuration.
+- **Open source** — the OpenTabletDisplay integration layer is MIT licensed.
 
-## Current support
+## Support
 
-| | Support |
+| | Current support |
 | --- | --- |
 | **Windows host** | Windows 10/11 x86-64 |
-| **Android client** | Android device with USB debugging + official Moonlight Game Streaming app (`com.limelight`) |
+| **Android client** | Android with USB debugging + official Moonlight Game Streaming app (`com.limelight`) |
 | **Transport** | USB data cable via ADB + gnirehtet |
-| **Display** | VirtualDrivers Virtual Display Driver (signed) |
+| **Display** | VirtualDrivers Virtual Display Driver |
 | **Capture / encoding** | Sunshine |
 | **Decode / input** | Moonlight Android |
-| **Tablet Wi-Fi** | May remain off for the display traffic |
+| **Tablet Wi-Fi** | May remain off for display traffic |
 
-The wired path has been validated end-to-end on a **Lenovo Tab M10 HD**. The project itself uses standard ADB/Moonlight interfaces and does not contain Lenovo-specific device IDs, but Android ROM and hardware quirks can still exist. See [Compatibility](docs/COMPATIBILITY.md).
+The full wired path has been validated end-to-end on a **Lenovo Tab M10 HD**. The runtime itself contains no Lenovo-specific device ID or fixed tablet-resolution assumption, but Android ROM/USB/VPN behavior varies, so reports from other hardware are especially useful.
 
-### Current networking limitation
+### Current stable limitation
 
-The stream packets themselves are routed through USB, but the current implementation still uses the Windows host's active physical IPv4 address as Sunshine/Moonlight address identity. Windows therefore needs an active physical IPv4/default route while a session is established.
+The stream packets themselves travel through USB, but stable **v3.1.1** still uses the Windows host's active physical IPv4 address as the Sunshine/Moonlight address identity. The PC therefore needs an active physical IPv4/default route while the session is established.
 
-Removing that identity dependency with an OpenTabletDisplay-owned host-only address is a future improvement; it is not shipped until hardware-validated.
+A host-only identity path is being developed separately and will not be called stable until it passes real-device validation.
 
 ## Install
 
-1. Download the latest **Windows release ZIP** from [Releases](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest) and extract it.
+1. Download and extract the latest [Windows release ZIP](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest).
 2. Run **`install.cmd`**.
-3. Install the official **Moonlight Game Streaming** app on the Android device.
-4. Enable **Developer options → USB debugging** on Android.
-5. Connect the Android device with a data-capable USB cable and approve the RSA debugging prompt.
-6. Keep Android's normal **USB tethering OFF**. OpenTabletDisplay uses its own ADB/gnirehtet path.
-7. Approve the one-time Android VPN/Connection request from gnirehtet.
+3. Install official **Moonlight Game Streaming** on Android.
+4. Enable **Developer options → USB debugging**.
+5. Connect a data-capable USB cable and approve the PC's RSA debugging prompt.
+6. Keep Android's normal **USB tethering OFF**; OpenTabletDisplay uses its own ADB/gnirehtet path.
+7. Approve gnirehtet's one-time Android VPN/Connection request.
 8. Pair Moonlight with the host address shown by OpenTabletDisplay, then launch **Desktop**.
 
-Pairing is one-time. The first Android device that completes the live TCP + UDP health checks becomes the enrolled display until you run `reset-device.cmd`.
+The first Android device that completes the live TCP + UDP checks becomes the enrolled display until you run `reset-device.cmd`.
 
-### Everyday use
-
-```text
-plug USB → open Moonlight → Desktop
-```
-
-The background bridge agent handles reconnects without keeping a visible command window open.
-
-## Recommended Moonlight settings
-
-These settings belong to Moonlight, so OpenTabletDisplay does not silently rewrite them:
+### Recommended Moonlight settings
 
 - **Optimize game settings:** ON
 - **Resolution:** Native / preferred tablet resolution
 - **Frame rate:** 60 FPS to start
-- **Use touchscreen as a trackpad:** OFF if you want direct-touch-style interaction
+- **Use touchscreen as a trackpad:** OFF for direct-touch-style interaction
 - **Play audio on PC:** ON if you want audio on both the PC and Android device
 
-## Existing Sunshine or VDD installation?
+OpenTabletDisplay deliberately does not rewrite Moonlight preferences behind your back.
 
-That is fine. `install.cmd` is an in-place installer.
+## Status, switching devices and uninstall
 
-If compatible Sunshine or Virtual Display Driver installations already exist, OpenTabletDisplay reuses them rather than installing duplicates. Existing Sunshine credentials and pairing state are preserved.
+The current 3.x package retains some internal **FSDL** names for upgrade compatibility with the project's original name.
 
-## Status, switching devices, and uninstall
+- `status.cmd` — Sunshine/VDD/agent/bridge health + recent agent log
+- `reset-device.cmd` — forget the enrolled Android device before switching
+- `uninstall.cmd` — remove OpenTabletDisplay/FSDL integration and restore Sunshine settings it changed
+- `installer\uninstall.ps1 -RemoveDependencies` — also remove Sunshine/VDD **only when install-state proves this project originally installed them**
 
-The current 3.x package retains legacy `FSDL` internal names for upgrade compatibility.
+Existing Sunshine credentials and Moonlight pairing state are preserved when compatible installations are reused.
 
-- `status.cmd` — Sunshine/VDD/agent/bridge health plus the recent agent log
-- `reset-device.cmd` — forget the enrolled Android display before switching devices
-- `uninstall.cmd` — remove the OpenTabletDisplay/FSDL integration and restore Sunshine settings it changed
-- `installer\uninstall.ps1 -RemoveDependencies` — additionally remove Sunshine/VDD **only when install-state proves this project originally installed them**
+## Help test hardware
 
-## Safety model
+CI can validate code, packaging and rollback logic. It cannot attach your USB controller, Android ROM or GPU.
 
-Third-party dependencies are downloaded from pinned upstream release URLs and checked against exact SHA-256 digests. The background agent then reuses those verified private copies, so attaching the tablet later does not trigger fresh dependency downloads.
+If you have a Windows PC and an old Android tablet/phone, a successful **or failed** hardware report is useful. Please include:
 
-A hash is an integrity check, not proof that a publisher is trustworthy. OpenTabletDisplay also relies on upstream signing where available and records source/license information in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The VDD publisher certificate is added to Trusted Publishers only for the install transaction and removed immediately if the installer added it.
+- Windows version and GPU;
+- Android model/version;
+- native panel resolution/refresh rate;
+- whether initial setup, reconnect, sleep/wake and uninstall worked;
+- `status.cmd` output with credentials/private data removed.
 
-Read [SECURITY.md](SECURITY.md) and [Architecture](docs/ARCHITECTURE.md) before deploying on machines where driver or local-network changes require review.
+See [Device testing](docs/DEVICE_TESTING.md) for the reporting format.
 
-## How it is different from a physical USB-C monitor
+Particularly useful right now: Samsung, Pixel, Xiaomi, OnePlus and other non-Lenovo devices, plus AMD/Intel Windows GPUs.
 
-A portable monitor normally receives a raw DisplayPort/HDMI video signal. Most Android tablets cannot accept that signal through their USB-C port.
+## Safety / provenance
 
-OpenTabletDisplay instead treats USB-C as a **data connection**:
+Third-party dependencies are downloaded from pinned upstream release URLs and checked against exact SHA-256 digests. Hashes are **integrity checks, not publisher trust proofs**; upstream signing and source provenance matter too.
 
-1. Windows renders a virtual monitor.
-2. Sunshine encodes that monitor as a low-latency video stream.
-3. The stream crosses the USB data cable.
-4. Moonlight decodes it on Android.
+The VDD publisher certificate is added to Trusted Publishers only for the install transaction and removed immediately if OpenTabletDisplay added it. Existing user-owned Sunshine/VDD state wins over the installer.
 
-That is why it can work with tablets whose USB-C port has no video-input capability.
+Read [Security](SECURITY.md), [Architecture](docs/ARCHITECTURE.md) and [Third-party notices](THIRD_PARTY_NOTICES.md) for details.
 
 ## Documentation
 
@@ -178,28 +158,28 @@ That is why it can work with tablets whose USB-C port has no video-input capabil
 
 ## Build and test
 
-On Windows:
+Windows:
 
 ```powershell
 ./scripts/build-release.ps1
 ```
 
-On Linux/macOS with Go installed:
+Linux/macOS with Go installed:
 
 ```bash
 ./scripts/build-release.sh
 ```
 
-The release build compiles the Windows x64 bridge plus the native Android ARM64 transport probe, runs tests/vet/race/self-tests, and packages the Windows release ZIP with checksums. GitHub Actions also parses every PowerShell installer script on a Windows runner.
+The release build compiles the Windows x64 bridge plus the native Android ARM64 transport probe, runs tests/vet/race/self-tests, and packages the Windows release with checksums. GitHub Actions also parses every PowerShell installer script on a Windows runner.
 
-The original project was developed with a strict hardware-boundary rule: CI and reproducible builds prove everything they realistically can, while claims about the actual USB/display path are only made after real-device validation.
+The project follows a strict hardware boundary: automation proves everything it realistically can, while claims about the actual USB/display path are made only after real-device validation.
 
 ## Name / compatibility note
 
-**OpenTabletDisplay** is the public product name going forward. **FSDL** was the original project name and remains visible in parts of the 3.x runtime (`FSDL.exe`, install-state paths, scheduled-task names, Go module path) so existing installations and upgrades do not break for a cosmetic rename.
+**OpenTabletDisplay** is the public product name. **FSDL** was the original project name and remains visible in parts of the 3.x runtime (`FSDL.exe`, install-state paths, scheduled-task names and Go module path) so existing installations and upgrades do not break for a cosmetic rename.
 
 A later major release can migrate those internals with an explicit compatibility/rollback plan.
 
 ## License
 
-The OpenTabletDisplay integration layer (formerly FSDL) is MIT licensed. It downloads and orchestrates separate third-party projects under their own licenses; it does not relicense them. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The OpenTabletDisplay integration layer is MIT licensed. It downloads and orchestrates separate third-party projects under their own licenses; it does not relicense them. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
