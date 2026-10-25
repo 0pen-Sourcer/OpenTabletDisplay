@@ -1,0 +1,71 @@
+name: Verify host identity PolicyStore ownership fix
+
+on:
+  push:
+    branches: ['feature/host-only-identity']
+    paths:
+      - '.github/workflows/verify-host-identity-policystore.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Apply guarded PolicyStore fix
+        run: python scripts/fix_host_identity_policystore.py
+
+      - name: Go validation
+        run: |
+          gofmt -w cmd internal
+          test -z "$(gofmt -l cmd internal)"
+          go test ./...
+          go vet ./...
+          go test -race ./...
+          go run ./cmd/fsdl --selftest
+
+      - name: Parse PowerShell
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem installer -Filter *.ps1 -File | ForEach-Object {
+            $tokens = $null; $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              Write-Host "Parse errors in $($_.FullName)" -ForegroundColor Red
+              $errors | Format-List | Out-String | Write-Host
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Build and verify candidate
+        run: |
+          ./scripts/build-release.sh
+          sha256sum -c dist/OpenTabletDisplay-3.2.0-rc.1-windows-x64.zip.sha256
+
+      - name: Commit validated product fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add installer/common.ps1
+          git commit -m 'fix: remove host identity from both Windows policy stores'
+          git push origin HEAD:feature/host-only-identity
+
+      - name: Upload superseding hardware-test candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenTabletDisplay-3.2.0-rc.1-policystore-fix
+          path: |
+            dist/OpenTabletDisplay-3.2.0-rc.1-windows-x64.zip
+            dist/OpenTabletDisplay-3.2.0-rc.1-windows-x64.zip.sha256
+          if-no-files-found: error
