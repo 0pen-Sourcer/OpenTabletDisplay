@@ -12,6 +12,18 @@ if ($vdd.Count -gt 0) {
     foreach ($d in $vdd) { Write-Host ('VDD: ' + $d.Status + '  ' + $d.InstanceId) }
 } else { Write-Host 'VDD: NOT FOUND' -ForegroundColor Yellow }
 
+$hostIdentity = Get-OTDHostIdentity
+if ($hostIdentity) {
+    $present = @(Get-NetIPAddress -InterfaceIndex ([uint32]$hostIdentity.interface_index) -AddressFamily IPv4 -IPAddress ([string]$hostIdentity.ip) -ErrorAction SilentlyContinue | Where-Object { [int]$_.PrefixLength -eq 32 })
+    if ($present.Count -gt 0) {
+        Write-Host ('Host identity: ' + $hostIdentity.ip + '/32  managed loopback')
+    } else {
+        Write-Host ('Host identity: ' + $hostIdentity.ip + '/32  MISSING') -ForegroundColor Yellow
+    }
+} else {
+    Write-Host 'Host identity: physical IPv4 fallback' -ForegroundColor Yellow
+}
+
 $enrollment = Join-Path $script:InstallRoot 'enrollment.json'
 if (Test-Path $enrollment) {
     try {

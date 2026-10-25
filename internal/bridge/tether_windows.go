@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 )
 
@@ -18,11 +19,28 @@ func normalUSBTetherActive(ctx context.Context, r Runner) (bool, error) {
 	return strings.Contains(out, "ACTIVE"), nil
 }
 
-// detectHostIPv4 selects the Windows address that Sunshine should advertise to Moonlight.
-// The address itself is routed through gnirehtet over USB, so the tablet does NOT use Wi-Fi
-// to reach it. We deliberately avoid RNDIS/virtual/VPN adapters and prefer the physical
-// interface that owns the best default route (normally the user's Wi-Fi adapter).
-func detectHostIPv4(ctx context.Context, r Runner) (string, error) {
+// detectHostIPv4 prefers the stable OpenTabletDisplay-owned loopback /32 identity.
+// FSDL/OTD 3.1.x physical-address discovery remains as a conservative fallback when the
+// managed alias is unavailable or explicitly bypassed for a live-session retry.
+func detectHostIPv4(ctx context.Context, r Runner, root string) (string, error) {
+	if os.Getenv("OTD_FORCE_PHYSICAL") != "1" {
+		if configured, ok, err := configuredHostIPv4(root); err != nil {
+			return "", err
+		} else if ok {
+			script := fmt.Sprintf(`if (Get-NetIPAddress -AddressFamily IPv4 -IPAddress '%s' -ErrorAction SilentlyContinue) { 'PRESENT' } else { exit 3 }`, configured)
+			out, er, runErr := r.Run(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
+			if runErr != nil || !strings.Contains(out, "PRESENT") {
+				return "", fmt.Errorf("managed OpenTabletDisplay host identity %s is not present on Windows: %v (%s)", configured, runErr, strings.TrimSpace(er))
+			}
+			return configured, nil
+		}
+	}
+	return detectPhysicalHostIPv4(ctx, r)
+}
+
+// detectPhysicalHostIPv4 is the validated 3.1.x fallback. The address itself is still
+// routed through gnirehtet over USB; it only requires the host to have a physical IPv4.
+func detectPhysicalHostIPv4(ctx context.Context, r Runner) (string, error) {
 	script := `
 $ErrorActionPreference='Stop'
 $routes = Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |

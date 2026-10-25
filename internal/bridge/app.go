@@ -245,6 +245,44 @@ func (a *App) validateSunshineAtHostIP(ctx context.Context, hostIP string) error
 	return validateServerInfoAddress(wire, hostIP)
 }
 
+func (a *App) selectSunshineHostIP(ctx context.Context) (string, error) {
+	configuredIP, configured, configuredErr := configuredHostIPv4(a.Root)
+	hostIP, err := detectHostIPv4(ctx, a.Runner, a.Root)
+	if err == nil {
+		if validateErr := a.validateSunshineAtHostIP(ctx, hostIP); validateErr == nil {
+			return hostIP, nil
+		} else {
+			err = validateErr
+		}
+	}
+	if os.Getenv("OTD_FORCE_PHYSICAL") == "1" || (!configured && configuredErr == nil) {
+		return "", fmt.Errorf("selected Moonlight host address is not Sunshine-safe: %w", err)
+	}
+	label := configuredIP
+	if label == "" {
+		label = "configured host-only identity"
+	}
+	a.Out("  Managed host identity %s is unavailable for this session: %v", label, err)
+	a.Out("  Falling back to the proven physical-address path for this session.")
+	previous, hadPrevious := os.LookupEnv("OTD_FORCE_PHYSICAL")
+	_ = os.Setenv("OTD_FORCE_PHYSICAL", "1")
+	defer func() {
+		if hadPrevious {
+			_ = os.Setenv("OTD_FORCE_PHYSICAL", previous)
+		} else {
+			_ = os.Unsetenv("OTD_FORCE_PHYSICAL")
+		}
+	}()
+	physical, physicalErr := detectHostIPv4(ctx, a.Runner, a.Root)
+	if physicalErr != nil {
+		return "", fmt.Errorf("host-only identity failed (%v) and physical fallback is unavailable: %w", err, physicalErr)
+	}
+	if validateErr := a.validateSunshineAtHostIP(ctx, physical); validateErr != nil {
+		return "", fmt.Errorf("host-only identity failed (%v) and physical fallback is not Sunshine-safe: %w", err, validateErr)
+	}
+	return physical, nil
+}
+
 func (a *App) tcpSunshineProbe(ctx context.Context, adb, serial, probe, hostIP string) error {
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -399,7 +437,7 @@ func (a *App) Start(ctx context.Context) error {
 	if runtime.GOOS != "windows" && os.Getenv("FSDL_ALLOW_NONWINDOWS") != "1" {
 		return fmt.Errorf("this release is for Windows; use --selftest for the sandbox test suite")
 	}
-	a.Out("FSDL USB Bridge %s", Version)
+	a.Out("OpenTabletDisplay USB Bridge %s", Version)
 
 	// Remove only detached relay processes owned by known older FSDL bring-up folders.
 	// This migrates early test builds without touching unrelated gnirehtet processes.
@@ -425,12 +463,9 @@ func (a *App) Start(ctx context.Context) error {
 	} else if active {
 		return fmt.Errorf("normal Android USB tethering is still ON. Turn USB tethering OFF, keep the USB data cable connected, then retry")
 	}
-	hostIP, err := detectHostIPv4(ctx, a.Runner)
+	hostIP, err := a.selectSunshineHostIP(ctx)
 	if err != nil {
 		return err
-	}
-	if err := a.validateSunshineAtHostIP(ctx, hostIP); err != nil {
-		return fmt.Errorf("selected Moonlight host address is not Sunshine-safe: %w", err)
 	}
 	a.Out("  USB-routed Moonlight host: %s", hostIP)
 	a.Out("  Sunshine advertises the same LocalIP: OK")
@@ -478,14 +513,36 @@ func (a *App) Start(ctx context.Context) error {
 		return fmt.Errorf("gnirehtet relay exited or changed before client start: %w; logs: %s", err, relayLogTail(outLog, errLog))
 	}
 	cleanupSession := true
+	cleanupTransport := func() {
+		_, _, _ = a.Runner.Run(context.Background(), gni, "stop", serial)
+		_, _, _ = a.Runner.Run(context.Background(), adb, "-s", serial, "reverse", "--remove", "localabstract:gnirehtet")
+		_ = KillVerifiedProcess(pid, gni)
+	}
 	defer func() {
 		if cleanupSession {
 			// Failure rollback: do not leave a VPN client, adb reverse mapping, or relay behind.
-			_, _, _ = a.Runner.Run(context.Background(), gni, "stop", serial)
-			_, _, _ = a.Runner.Run(context.Background(), adb, "-s", serial, "reverse", "--remove", "localabstract:gnirehtet")
-			_ = KillVerifiedProcess(pid, gni)
+			cleanupTransport()
 		}
 	}()
+	fallbackToPhysical := func(cause error) error {
+		if os.Getenv("OTD_FORCE_PHYSICAL") == "1" || !isConfiguredHostIPv4(a.Root, hostIP) {
+			return cause
+		}
+		a.Out("  Managed host-only identity %s failed live Android validation: %v", hostIP, cause)
+		a.Out("  Cleaning that attempt and retrying the proven physical-address path.")
+		cleanupTransport()
+		cleanupSession = false
+		previous, hadPrevious := os.LookupEnv("OTD_FORCE_PHYSICAL")
+		_ = os.Setenv("OTD_FORCE_PHYSICAL", "1")
+		defer func() {
+			if hadPrevious {
+				_ = os.Setenv("OTD_FORCE_PHYSICAL", previous)
+			} else {
+				_ = os.Unsetenv("OTD_FORCE_PHYSICAL")
+			}
+		}()
+		return a.Start(ctx)
+	}
 
 	// `start` installs the client if required. Use the same randomized relay port
 	// on both ends so an unrelated/stale gnirehtet process on the default port
@@ -508,13 +565,13 @@ func (a *App) Start(ctx context.Context) error {
 
 	a.Out("[5/7] Tablet -> Sunshine TCP over USB")
 	if err := a.tcpSunshineProbe(ctx, adb, serial, probe, hostIP); err != nil {
-		return fmt.Errorf("USB TCP self-test failed: %w", err)
+		return fallbackToPhysical(fmt.Errorf("USB TCP self-test failed: %w", err))
 	}
 	a.Out("  OK: tablet reached Sunshine and Sunshine advertised %s", hostIP)
 
 	a.Out("[6/7] Tablet -> PC UDP over USB")
 	if err := a.udpProbe(ctx, adb, serial, probe, hostIP); err != nil {
-		return fmt.Errorf("USB UDP self-test failed: %w", err)
+		return fallbackToPhysical(fmt.Errorf("USB UDP self-test failed: %w", err))
 	}
 	a.Out("  OK: UDP survived the ADB/VPN relay")
 
@@ -568,7 +625,7 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	_, _, p, _, _ := a.paths()
 	_ = os.Remove(p)
-	a.Out("FSDL USB bridge stopped. Sunshine/VDD were not touched.")
+	a.Out("OpenTabletDisplay USB bridge stopped. Sunshine/VDD were not touched.")
 	return nil
 }
 
@@ -599,7 +656,7 @@ func (a *App) Cleanup(ctx context.Context) error {
 }
 
 func (a *App) Prepare(ctx context.Context) error {
-	a.Out("FSDL %s dependency preparation", Version)
+	a.Out("OpenTabletDisplay %s dependency preparation", Version)
 	adb, gni, err := a.ensureDependencies(ctx)
 	if err != nil {
 		return err
@@ -612,7 +669,7 @@ func (a *App) Prepare(ctx context.Context) error {
 }
 
 func (a *App) Doctor(ctx context.Context) error {
-	a.Out("FSDL USB Bridge doctor")
+	a.Out("OpenTabletDisplay USB Bridge doctor")
 	if err := HTTP200(ctx, a.HTTP, a.SunshineURL); err != nil {
 		return fmt.Errorf("Sunshine: FAIL: %w", err)
 	}

@@ -39,7 +39,7 @@ func (a *App) Daemon(ctx context.Context) error {
 				_ = a.Stop(context.Background())
 			}
 			if lastStatus != "tether" {
-				a.Out("Android USB tethering is ON; FSDL is paused until it is OFF.")
+				a.Out("Android USB tethering is ON; OpenTabletDisplay is paused until it is OFF.")
 				lastStatus = "tether"
 			}
 			lastSerial = ""
@@ -72,7 +72,7 @@ func (a *App) Daemon(ctx context.Context) error {
 		}
 
 		if lastStatus != "starting:"+serial {
-			a.Out("Authorized Android device %s detected; establishing FSDL transport...", serial)
+			a.Out("Authorized Android device %s detected; establishing OpenTabletDisplay transport...", serial)
 			lastStatus = "starting:" + serial
 		}
 		runCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
@@ -88,7 +88,7 @@ func (a *App) Daemon(ctx context.Context) error {
 			}
 			lastStatus = "failed:" + err.Error()
 		} else {
-			a.Out("FSDL USB transport READY in background.")
+			a.Out("OpenTabletDisplay USB transport READY in background.")
 			lastStatus = "ready"
 		}
 		lastSerial = serial
@@ -103,8 +103,7 @@ func (a *App) activeStateHealthy(ctx context.Context, serial string) bool {
 	if err := VerifyProcessOwner(st.RelayPID, st.GnirehtetPath); err != nil {
 		return false
 	}
-	hostIP, err := detectHostIPv4(ctx, a.Runner)
-	if err != nil || hostIP != st.HostIP {
+	if err := a.validateSunshineAtHostIP(ctx, st.HostIP); err != nil {
 		return false
 	}
 	// Verify the ADB reverse mapping still targets our randomized relay port.

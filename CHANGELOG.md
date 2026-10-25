@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.2.0-rc.1 — Host-only identity candidate
+
+- Adds an OpenTabletDisplay-owned private `/32` on the Windows loopback interface so Moonlight/Sunshine no longer need to borrow the host Wi-Fi/Ethernet address when the alias passes validation.
+- Chooses from conflict-checked RFC1918 candidates, marks the alias `SkipAsSource`, persists ownership metadata, and removes only the exact owned alias during rollback/uninstall.
+- Validates Sunshine `LocalIP` locally before enabling the identity and still runs the existing real Android TCP + UDP probes before READY.
+- If live Android validation of the host-only identity fails, the session cleans up and retries the proven 3.1.x physical-address path instead of stranding the user.
+- This remains a release candidate until the host-only path is validated on real Android hardware.
+
 ## 3.1.1 — OpenTabletDisplay public release polish (2026-10-25)
 
 - Public project name changed from **FSDL** to **OpenTabletDisplay** so the repository immediately communicates its purpose: use an Android tablet or phone as a real second Windows monitor over USB.

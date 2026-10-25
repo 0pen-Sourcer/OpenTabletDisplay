@@ -29,6 +29,18 @@ if (Test-Path $exe) {
     try { & $exe cleanup | Out-Host } catch {}
 }
 
+
+
+$hostIdentity = Get-OTDHostIdentity
+if ($hostIdentity) {
+    if (Remove-OTDHostIdentity $hostIdentity) {
+        Write-FSDLLog ('Removed OpenTabletDisplay-owned host identity ' + $hostIdentity.ip + '/32.') $logPath
+    } else {
+        Write-FSDLLog 'Managed host identity record existed, but the address no longer matched the OpenTabletDisplay ownership fingerprint; preserving the current network state.' $logPath
+    }
+    Remove-Item -LiteralPath $script:HostIdentityPath -Force -ErrorAction SilentlyContinue
+}
+
 # Restore only keys that still equal FSDL's applied value. User edits made after
 # installation win over FSDL's old snapshot and are left untouched.
 if ($state -and $state.sunshine_config_path -and $state.sunshine_changes) {

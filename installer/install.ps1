@@ -37,6 +37,8 @@ $configChanged = $false
 $vddAddedInstanceIds = @()
 $vddAddedDriverNames = @()
 $createdTask = $false
+$hostIdentity = $null
+$hostIdentityCreatedThisRun = $false
 
 function Stop-FSDLAgentTasks {
     foreach ($name in @($script:TaskName, 'FSDL USB Bridge Agent')) {
@@ -271,10 +273,36 @@ try {
     Write-FSDLLog 'Configured Sunshine for stable VDD capture, client-driven resolution/refresh, session-primary display, and automatic layout restore.' $logPath
     Restart-FSDLSunshine
 
+
+
+    # Create a stable project-owned RFC1918 /32 on the Windows loopback interface.
+    # This removes the need to borrow a Wi-Fi/Ethernet address as Moonlight identity.
+    $identityBefore = Get-OTDHostIdentity
+    $identityAddressBefore = $false
+    if ($identityBefore) {
+        $identityAddressBefore = [bool](Get-NetIPAddress -InterfaceIndex ([uint32]$identityBefore.interface_index) -AddressFamily IPv4 -IPAddress ([string]$identityBefore.ip) -ErrorAction SilentlyContinue)
+    }
+    try {
+        $hostIdentity = New-OTDHostIdentity
+        if (-not $identityAddressBefore) { $hostIdentityCreatedThisRun = $true }
+        if (Test-OTDSunshineHostIdentity ([string]$hostIdentity.ip)) {
+            Write-FSDLLog ('Managed host-only Moonlight identity: ' + $hostIdentity.ip + '/32 on Windows loopback.') $logPath
+        } else {
+            Write-FSDLLog ('Managed host-only identity ' + $hostIdentity.ip + ' did not produce matching Sunshine LocalIP; removing it and keeping the 3.1.x physical-address fallback.') $logPath
+            [void](Remove-OTDHostIdentity $hostIdentity)
+            Remove-Item -LiteralPath $script:HostIdentityPath -Force -ErrorAction SilentlyContinue
+            $hostIdentity = $null
+            $hostIdentityCreatedThisRun = $false
+        }
+    } catch {
+        Write-FSDLLog ('Host-only identity setup unavailable; preserving physical-address fallback: ' + $_.Exception.Message) $logPath
+        $hostIdentity = $null
+    }
+
     # Download and verify USB runtime dependencies now, not on the first daily plug-in.
     $installedExe = Join-Path $script:InstallRoot 'FSDL.exe'
     & $installedExe prepare
-    if ($LASTEXITCODE -ne 0) { throw 'FSDL dependency preparation failed.' }
+    if ($LASTEXITCODE -ne 0) { throw 'OpenTabletDisplay dependency preparation failed.' }
 
     $state = [ordered]@{
         version = $script:FSDLVersion
@@ -286,6 +314,8 @@ try {
         sunshine_changes = @($changes)
         vdd_instance_ids = @()
         vdd_driver_names = @()
+        host_identity_ip = if ($hostIdentity) { [string]$hostIdentity.ip } else { $null }
+        host_identity_mode = if ($hostIdentity) { 'loopback_alias' } else { 'physical_fallback' }
     }
     if ($oldState -and $oldState.vdd_instance_ids) { $state.vdd_instance_ids = @($oldState.vdd_instance_ids) }
     if ($oldState -and $oldState.vdd_driver_names) { $state.vdd_driver_names = @($oldState.vdd_driver_names) }
@@ -329,7 +359,8 @@ try {
     Write-Host '  5. In Moonlight, set Use touchscreen as a trackpad = OFF for direct touch.'
     Write-Host '  6. Enable Play audio on PC if you want sound on PC speakers and Android together.'
     Write-Host ''
-    Write-Host 'After first pairing: plug USB -> open Moonlight -> Desktop. No FSDL console needs to stay open.' -ForegroundColor Green
+    if ($hostIdentity) { Write-Host ('Stable USB-only host identity: ' + $hostIdentity.ip) -ForegroundColor Green } else { Write-Host 'Host identity: physical IPv4 fallback (an active host network address is still required).' -ForegroundColor Yellow }
+    Write-Host 'After first pairing: plug USB -> open Moonlight -> Desktop. No OpenTabletDisplay console needs to stay open.' -ForegroundColor Green
     if (Test-Path (Join-Path $script:InstallRoot 'sunshine-webui.txt')) {
         Write-Host ('Fresh Sunshine Web UI credentials: ' + (Join-Path $script:InstallRoot 'sunshine-webui.txt'))
     }
@@ -338,6 +369,14 @@ try {
 catch {
     Write-FSDLLog ('INSTALL FAILED: ' + $_.Exception.Message) $logPath
     try { Stop-FSDLAgentTasks } catch {}
+    if ($hostIdentityCreatedThisRun) {
+        try {
+            $rollbackIdentity = Get-OTDHostIdentity
+            if ($rollbackIdentity) { [void](Remove-OTDHostIdentity $rollbackIdentity) }
+            Remove-Item -LiteralPath $script:HostIdentityPath -Force -ErrorAction SilentlyContinue
+            Write-FSDLLog 'Rolled back the host-only loopback identity.' $logPath
+        } catch {}
+    }
     if ($configChanged -and $configBackup -and (Test-Path $configBackup)) {
         try {
             $cfg = Get-FSDLSunshineConfigPath

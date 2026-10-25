@@ -1,10 +1,11 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
-$script:FSDLVersion = '3.1.1'
+$script:FSDLVersion = '3.2.0-rc.1'
 $script:TaskName = 'FSDL USB Display Agent'
 $script:InstallRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'FSDL'
 $script:InstallStatePath = Join-Path $script:InstallRoot 'install-state.json'
+$script:HostIdentityPath = Join-Path $script:InstallRoot 'host-identity.json'
 $script:SunshineVersion = '2026.914.233613'
 $script:SunshineUrl = 'https://github.com/LizardByte/Sunshine/releases/download/v2026.914.233613/Sunshine-Windows-AMD64-installer.msi'
 $script:SunshineSha256 = '1d7fed8beecd5889dc7ff14cf9f42d6d38f37c3066c13c6c2a5f4e91847e0ccf'
@@ -255,4 +256,98 @@ function Save-FSDLJson([object]$Value, [string]$Path) {
     $dir = Split-Path -Parent $Path
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     $Value | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $Path -Encoding UTF8
+}
+
+
+function Get-OTDHostIdentity {
+    if (-not (Test-Path $script:HostIdentityPath)) { return $null }
+    try {
+        $identity = Get-Content -LiteralPath $script:HostIdentityPath -Raw | ConvertFrom-Json
+        if ([int]$identity.schema -ne 1 -or [string]$identity.mode -ne 'loopback_alias' -or -not [bool]$identity.managed_by_opentabletdisplay) { return $null }
+        if ([string]$identity.ip -notmatch '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)') { return $null }
+        if ([int]$identity.prefix_length -ne 32) { return $null }
+        return $identity
+    } catch { return $null }
+}
+
+function Get-OTDLoopbackInterfaceIndex {
+    $loop = Get-NetIPAddress -AddressFamily IPv4 -IPAddress '127.0.0.1' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $loop) { throw 'Windows IPv4 loopback interface (127.0.0.1) was not found.' }
+    return [uint32]$loop.InterfaceIndex
+}
+
+function Test-OTDHostRouteConflict([string]$IPAddress, [uint32]$LoopbackIndex) {
+    if (Get-NetIPAddress -AddressFamily IPv4 -IPAddress $IPAddress -ErrorAction SilentlyContinue) { return $true }
+    try {
+        $routeObjects = @(Find-NetRoute -RemoteIPAddress $IPAddress -ErrorAction Stop)
+        $route = @($routeObjects | Where-Object { $_.PSObject.Properties.Name -contains 'DestinationPrefix' } | Select-Object -First 1)
+        if ($route.Count -eq 0) { return $false }
+        $prefix = [string]$route[0].DestinationPrefix
+        $index = [uint32]$route[0].InterfaceIndex
+        return ($prefix -ne '0.0.0.0/0' -and $index -ne $LoopbackIndex)
+    } catch {
+        return $false
+    }
+}
+
+function New-OTDHostIdentity {
+    $loopIndex = Get-OTDLoopbackInterfaceIndex
+    $existing = Get-OTDHostIdentity
+    $candidates = New-Object System.Collections.Generic.List[string]
+    if ($existing -and $existing.ip) { $candidates.Add([string]$existing.ip) }
+    foreach ($candidate in @('172.31.255.254','172.30.255.254','10.255.255.254','192.168.255.254')) {
+        if (-not $candidates.Contains($candidate)) { $candidates.Add($candidate) }
+    }
+    foreach ($candidate in $candidates) {
+        $already = @(Get-NetIPAddress -AddressFamily IPv4 -IPAddress $candidate -ErrorAction SilentlyContinue)
+        $ours = @($already | Where-Object { [uint32]$_.InterfaceIndex -eq $loopIndex -and [int]$_.PrefixLength -eq 32 })
+        if ($ours.Count -gt 0 -and $existing -and [string]$existing.ip -eq $candidate -and [uint32]$existing.interface_index -eq $loopIndex) {
+            return $existing
+        }
+        if ($already.Count -gt 0) { continue }
+        if (Test-OTDHostRouteConflict $candidate $loopIndex) { continue }
+        try {
+            New-NetIPAddress -InterfaceIndex $loopIndex -IPAddress $candidate -PrefixLength 32 -AddressFamily IPv4 -SkipAsSource $true -ErrorAction Stop | Out-Null
+            Start-Sleep -Milliseconds 250
+            $check = @(Get-NetIPAddress -InterfaceIndex $loopIndex -AddressFamily IPv4 -IPAddress $candidate -ErrorAction SilentlyContinue | Where-Object { [int]$_.PrefixLength -eq 32 })
+            if ($check.Count -eq 0) { throw 'Windows did not retain the new /32 address.' }
+            $identity = [ordered]@{
+                schema = 1
+                ip = $candidate
+                mode = 'loopback_alias'
+                interface_index = $loopIndex
+                prefix_length = 32
+                skip_as_source = $true
+                managed_by_opentabletdisplay = $true
+                created_at = (Get-Date -Format o)
+            }
+            Save-FSDLJson $identity $script:HostIdentityPath
+            return [pscustomobject]$identity
+        } catch {
+            Remove-NetIPAddress -InterfaceIndex $loopIndex -IPAddress $candidate -Confirm:$false -ErrorAction SilentlyContinue
+        }
+    }
+    throw 'No conflict-free RFC1918 /32 address was available for the OpenTabletDisplay host-only identity.'
+}
+
+function Remove-OTDHostIdentity($Identity) {
+    if (-not $Identity -or -not [bool]$Identity.managed_by_opentabletdisplay) { return $false }
+    $ip = [string]$Identity.ip
+    $index = [uint32]$Identity.interface_index
+    $owned = @(Get-NetIPAddress -InterfaceIndex $index -AddressFamily IPv4 -IPAddress $ip -ErrorAction SilentlyContinue | Where-Object {
+        [int]$_.PrefixLength -eq 32 -and [bool]$_.SkipAsSource
+    })
+    if ($owned.Count -eq 0) { return $false }
+    Remove-NetIPAddress -InterfaceIndex $index -IPAddress $ip -Confirm:$false -ErrorAction SilentlyContinue
+    return $true
+}
+
+function Test-OTDSunshineHostIdentity([string]$IPAddress) {
+    try {
+        $uri = 'http://' + $IPAddress + ':47989/serverinfo'
+        $r = Invoke-WebRequest -UseBasicParsing -Uri $uri -TimeoutSec 4
+        if ($r.StatusCode -ne 200) { return $false }
+        [xml]$xml = $r.Content
+        return ([string]$xml.root.LocalIP -eq $IPAddress)
+    } catch { return $false }
 }
