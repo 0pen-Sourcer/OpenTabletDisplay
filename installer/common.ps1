@@ -1,7 +1,7 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
-$script:FSDLVersion = '3.1.0'
+$script:FSDLVersion = '3.1.1'
 $script:TaskName = 'FSDL USB Display Agent'
 $script:InstallRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'FSDL'
 $script:InstallStatePath = Join-Path $script:InstallRoot 'install-state.json'

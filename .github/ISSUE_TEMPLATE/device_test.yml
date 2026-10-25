@@ -1,0 +1,31 @@
+name: Device compatibility report
+description: Report a real Android device tested with OpenTabletDisplay
+title: "[Device] "
+labels: ["help wanted"]
+body:
+  - type: input
+    id: device
+    attributes:
+      label: Android device
+      placeholder: Samsung Galaxy Tab S8 / Android 14
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Windows host
+      placeholder: Windows 11 24H2, RTX 4060
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Overall result
+      options: [Works, Works with issues, Does not work]
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Results / sanitized status output
+      description: Include enrollment, TCP+UDP, pairing, video, input, audio, reconnect and 10+ minute 60 FPS results. Do not include credentials or PINs.

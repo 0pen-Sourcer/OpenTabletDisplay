@@ -1,6 +1,6 @@
 . (Join-Path $PSScriptRoot 'common.ps1')
 $exe = Join-Path $script:InstallRoot 'FSDL.exe'
-Write-Host ('FSDL ' + $script:FSDLVersion + ' status') -ForegroundColor Cyan
+Write-Host ('OpenTabletDisplay ' + $script:FSDLVersion + ' status') -ForegroundColor Cyan
 Write-Host ('Install root: ' + $script:InstallRoot)
 
 $task = Get-ScheduledTask -TaskName $script:TaskName -ErrorAction SilentlyContinue

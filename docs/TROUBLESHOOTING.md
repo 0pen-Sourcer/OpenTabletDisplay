@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start with `status.cmd`. It reports Sunshine, VDD, the background agent, Android enrollment, FSDL doctor output, and the recent agent log.
+Start with `status.cmd`. It reports Sunshine, VDD, the background agent, Android enrollment, OpenTabletDisplay/FSDL runtime doctor output, and the recent agent log.
 
 ## Android is invisible to FSDL
 

@@ -12,7 +12,7 @@ if (-not (Test-FSDLAdmin)) {
 }
 
 if (-not [Environment]::Is64BitOperatingSystem) {
-    throw 'FSDL 3.1.0 requires 64-bit Windows 10 or 11.'
+    throw ('OpenTabletDisplay ' + $script:FSDLVersion + ' requires 64-bit Windows 10 or 11.')
 }
 
 $packageRoot = Split-Path -Parent $PSScriptRoot
@@ -23,7 +23,7 @@ if (-not (Test-Path $payloadProbes)) { throw ('Release payload is incomplete: ' 
 
 New-Item -ItemType Directory -Force -Path $script:InstallRoot | Out-Null
 $logPath = Join-Path $script:InstallRoot 'logs\install.log'
-Set-Content -LiteralPath $logPath -Value ('FSDL ' + $script:FSDLVersion + ' install ' + (Get-Date -Format o)) -Encoding UTF8
+Set-Content -LiteralPath $logPath -Value ('OpenTabletDisplay ' + $script:FSDLVersion + ' install ' + (Get-Date -Format o)) -Encoding UTF8
 
 $oldState = $null
 if (Test-Path $script:InstallStatePath) {
@@ -53,7 +53,7 @@ function Remove-FSDLVddInstances([string[]]$InstanceIds) {
 }
 
 try {
-    Write-FSDLLog 'Starting FSDL install/update. Existing Sunshine credentials and pairings are preserved.' $logPath
+    Write-FSDLLog 'Starting OpenTabletDisplay install/update. Existing Sunshine credentials and pairings are preserved.' $logPath
     Stop-FSDLAgentTasks
     $installedExeExisting = Join-Path $script:InstallRoot 'FSDL.exe'
     if (Test-Path $installedExeExisting) {
@@ -79,7 +79,7 @@ try {
     Remove-Item -LiteralPath $probeTarget -Recurse -Force -ErrorAction SilentlyContinue
     Move-Item -LiteralPath (Join-Path $staging 'probes') -Destination $probeTarget
     Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
-    Write-FSDLLog ('Installed FSDL binaries under ' + $script:InstallRoot) $logPath
+    Write-FSDLLog ('Installed OpenTabletDisplay runtime files under ' + $script:InstallRoot) $logPath
 
     # Sunshine: reuse when present, otherwise install the exact pinned upstream MSI.
     $sunshineService = Get-Service -Name 'SunshineService' -ErrorAction SilentlyContinue
@@ -107,7 +107,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Sunshine credential initialization failed.' }
         $credFile = Join-Path $script:InstallRoot 'sunshine-webui.txt'
         @(
-            'Sunshine Web UI credentials created by FSDL on ' + (Get-Date -Format o),
+            'Sunshine Web UI credentials created by OpenTabletDisplay on ' + (Get-Date -Format o),
             'URL: https://localhost:47990',
             'Username: fsdl',
             'Password: ' + $password,
@@ -304,14 +304,14 @@ try {
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
     $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero)
-    Register-ScheduledTask -TaskName $script:TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Keeps FSDL wired Android display transport available in the background.' -Force | Out-Null
+    Register-ScheduledTask -TaskName $script:TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Keeps OpenTabletDisplay wired Android display transport available in the background.' -Force | Out-Null
     Start-ScheduledTask -TaskName $script:TaskName
     $createdTask = $true
 
     # Register a normal uninstall entry so the extracted release folder can be deleted.
     $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FSDL'
     New-Item -Path $uninstallKey -Force | Out-Null
-    New-ItemProperty -Path $uninstallKey -Name DisplayName -Value 'FSDL Wired Android Display' -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $uninstallKey -Name DisplayName -Value 'OpenTabletDisplay' -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name DisplayVersion -Value $script:FSDLVersion -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name Publisher -Value '0pen-Sourcer' -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name UninstallString -Value ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $script:InstallRoot 'uninstall.ps1') + '"') -PropertyType String -Force | Out-Null
@@ -320,7 +320,7 @@ try {
 
     Write-FSDLLog 'Install/update completed successfully.' $logPath
     Write-Host ''
-    Write-Host 'FSDL IS INSTALLED.' -ForegroundColor Green
+    Write-Host 'OpenTabletDisplay is installed.' -ForegroundColor Green
     Write-Host 'One-time Android setup:' -ForegroundColor Cyan
     Write-Host '  1. Install official Moonlight Game Streaming.'
     Write-Host '  2. Enable Developer options -> USB debugging and approve this PC.'

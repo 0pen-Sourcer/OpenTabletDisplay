@@ -1,6 +1,6 @@
 # Third-party components
 
-FSDL intentionally does not vendor Sunshine, Moonlight, Virtual Display Driver, Android Platform Tools, NefCon, or gnirehtet into the source repository. Install/runtime code downloads pinned upstream artifacts when required.
+OpenTabletDisplay intentionally does not vendor Sunshine, Moonlight, Virtual Display Driver, Android Platform Tools, NefCon, or gnirehtet into the source repository. Install/runtime code downloads pinned upstream artifacts when required.
 
 | Component | Purpose | Pinned release | License / source | Artifact integrity |
 |---|---|---:|---|---|

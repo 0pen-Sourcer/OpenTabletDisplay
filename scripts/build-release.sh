@@ -37,5 +37,6 @@ echo '[5/6] checksums'
 
 echo '[6/6] zip'
 ( cd "$ROOT/dist" && zip -qr "$PACKAGE.zip" "$PACKAGE" )
-sha256sum "$ROOT/dist/$PACKAGE.zip"
-echo "Built: $ROOT/dist/$PACKAGE.zip"
+ZIP="$ROOT/dist/$PACKAGE.zip"
+sha256sum "$ZIP" | tee "$ZIP.sha256"
+echo "Built: $ZIP"

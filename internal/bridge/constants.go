@@ -1,7 +1,7 @@
 package bridge
 
 const (
-	Version = "3.1.0"
+	Version = "3.1.1"
 
 	AdbVersion = "37.0.1"
 	AdbURL     = "https://dl.google.com/android/repository/platform-tools_r37.0.1-win.zip"

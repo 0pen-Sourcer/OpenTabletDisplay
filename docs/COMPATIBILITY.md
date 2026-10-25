@@ -7,7 +7,7 @@
 - A USB data port/cable
 - An active physical IPv4 on the Windows host (current address-identity requirement)
 
-FSDL's installer can install its pinned Sunshine and Virtual Display Driver versions, or reuse an existing compatible installation.
+OpenTabletDisplay's installer can install its pinned Sunshine and Virtual Display Driver versions, or reuse an existing compatible installation. The 3.x runtime intentionally retains legacy FSDL internal names for upgrade compatibility.
 
 ## Supported Android client
 

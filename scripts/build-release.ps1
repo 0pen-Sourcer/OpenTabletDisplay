@@ -60,5 +60,7 @@ $rows | Set-Content -LiteralPath $checksumPath -Encoding ASCII
 Write-Host '[7/7] zip'
 $zip = Join-Path $DistRoot ($Package + '.zip')
 Compress-Archive -LiteralPath $Out -DestinationPath $zip -CompressionLevel Optimal
-Write-Host ('SHA256 ' + (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant())
+$zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+($zipHash + '  ' + [IO.Path]::GetFileName($zip)) | Set-Content -LiteralPath ($zip + '.sha256') -Encoding ASCII
+Write-Host ('SHA256 ' + $zipHash)
 Write-Host ('Built: ' + $zip)

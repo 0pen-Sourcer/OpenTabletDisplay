@@ -1,5 +1,7 @@
 # OpenTabletDisplay
 
+[![CI](https://github.com/0pen-Sourcer/OpenTabletDisplay/actions/workflows/ci.yml/badge.svg)](https://github.com/0pen-Sourcer/OpenTabletDisplay/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/0pen-Sourcer/OpenTabletDisplay)](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)](docs/COMPATIBILITY.md)
+
 **Use an Android tablet or phone as a real second Windows monitor over USB.**
 
 OpenTabletDisplay turns an ordinary Android device into an **extended Windows display** using the USB cable you already have. No HDMI input on the tablet is required, and the tablet's Wi-Fi can stay off while the display traffic travels over USB.
@@ -98,7 +100,7 @@ Removing that identity dependency with an OpenTabletDisplay-owned host-only addr
 
 ## Install
 
-1. Download the latest **Windows release ZIP** and extract it.
+1. Download the latest **Windows release ZIP** from [Releases](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest) and extract it.
 2. Run **`install.cmd`**.
 3. Install the official **Moonlight Game Streaming** app on the Android device.
 4. Enable **Developer options → USB debugging** on Android.
@@ -169,6 +171,8 @@ That is why it can work with tablets whose USB-C port has no video-input capabil
 - [Compatibility](docs/COMPATIBILITY.md)
 - [Moonlight client setup](docs/MOONLIGHT.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Device testing](docs/DEVICE_TESTING.md)
+- [Roadmap](docs/ROADMAP.md)
 - [Security](SECURITY.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 

@@ -11,7 +11,7 @@ import (
 // Daemon keeps the wired Android transport available without requiring a
 // visible launcher window. The installer runs it from a per-user scheduled task.
 func (a *App) Daemon(ctx context.Context) error {
-	a.Out("FSDL USB agent %s", Version)
+	a.Out("OpenTabletDisplay USB agent %s", Version)
 	a.Out("Waiting for an authorized Android display over USB...")
 
 	adb, _, err := a.ensureDependencies(ctx)

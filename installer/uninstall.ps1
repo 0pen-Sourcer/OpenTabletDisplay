@@ -12,7 +12,7 @@ if (-not (Test-FSDLAdmin)) {
 }
 
 $logPath = Join-Path $script:InstallRoot 'logs\uninstall.log'
-Write-FSDLLog 'Starting FSDL uninstall.' $logPath
+Write-FSDLLog 'Starting OpenTabletDisplay uninstall.' $logPath
 
 $state = $null
 if (Test-Path $script:InstallStatePath) {
@@ -86,4 +86,4 @@ Remove-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FSD
 $rootEscaped = $script:InstallRoot.Replace('"','""')
 $cmd = '/c ping 127.0.0.1 -n 3 >nul & rmdir /s /q "' + $rootEscaped + '"'
 Start-Process -FilePath 'cmd.exe' -ArgumentList $cmd -WindowStyle Hidden | Out-Null
-Write-Host 'FSDL removed. Sunshine/VDD were preserved unless -RemoveDependencies was explicitly requested and ownership was recorded.' -ForegroundColor Green
+Write-Host 'OpenTabletDisplay removed. Sunshine/VDD were preserved unless -RemoveDependencies was explicitly requested and ownership was recorded.' -ForegroundColor Green
