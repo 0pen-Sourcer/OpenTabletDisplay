@@ -70,8 +70,6 @@ This catches a transport that merely "started" but cannot actually carry a Moonl
 
 The currently validated transport uses the host's active physical IPv4 as Sunshine/Moonlight's address identity, then routes that address through gnirehtet over USB. Android Wi-Fi may remain off and stream packets still travel over USB, but the Windows host currently needs an active physical IPv4/default route so OpenTabletDisplay has a stable address Sunshine can advertise.
 
-A future release may remove that identity dependency with an OpenTabletDisplay-owned host-only address after that design has been hardware-validated. It is intentionally not shipped as an untested networking change.
-
 ## Android enrollment
 
 The first single authorized Android device that completes OpenTabletDisplay's live TCP+UDP checks is persisted in `enrollment.json`. Thereafter the runtime selects only that serial and will not silently switch to another authorized phone/tablet.
@@ -86,4 +84,4 @@ Sunshine configuration restoration is compare-and-restore: a key is restored onl
 
 ## Legacy runtime names
 
-OpenTabletDisplay is the public project name. The 3.x runtime intentionally retains some `FSDL` names for binary paths, state, scheduled tasks, and Go module imports so a documentation rebrand cannot break installed systems. Those internals should only move in a compatibility-planned major release.
+OpenTabletDisplay is the public project name. The 3.x runtime intentionally retains some `FSDL` names for binary paths, state, scheduled tasks, and Go module imports so a documentation rebrand cannot break installed systems.
