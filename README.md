@@ -79,13 +79,11 @@ The virtual display is selected using Sunshine's stable display-device GUID rath
 | **Decode / input** | Moonlight Android |
 | **Tablet Wi-Fi** | May remain off for display traffic |
 
-The full wired path has been validated end-to-end on a **Lenovo Tab M10 HD**. The runtime itself contains no Lenovo-specific device ID or fixed tablet-resolution assumption, but Android ROM/USB/VPN behavior varies, so reports from other hardware are especially useful.
+The full wired path has been validated end-to-end on a **Lenovo Tab M10 HD**. The runtime itself contains no Lenovo-specific device ID or fixed tablet-resolution assumption, but Android ROM/USB/VPN behavior varies, so reports from other hardware are useful.
 
 ### Current stable limitation
 
 The stream packets themselves travel through USB, but stable **v3.1.1** still uses the Windows host's active physical IPv4 address as the Sunshine/Moonlight address identity. The PC therefore needs an active physical IPv4/default route while the session is established.
-
-A host-only identity path is being developed separately and will not be called stable until it passes real-device validation.
 
 ## Install
 
@@ -135,8 +133,6 @@ If you have a Windows PC and an old Android tablet/phone, a successful **or fail
 
 See [Device testing](docs/DEVICE_TESTING.md) for the reporting format.
 
-Particularly useful right now: Samsung, Pixel, Xiaomi, OnePlus and other non-Lenovo devices, plus AMD/Intel Windows GPUs.
-
 ## Safety / provenance
 
 Third-party dependencies are downloaded from pinned upstream release URLs and checked against exact SHA-256 digests. Hashes are **integrity checks, not publisher trust proofs**; upstream signing and source provenance matter too.
@@ -177,8 +173,6 @@ The project follows a strict hardware boundary: automation proves everything it 
 ## Name / compatibility note
 
 **OpenTabletDisplay** is the public product name. **FSDL** was the original project name and remains visible in parts of the 3.x runtime (`FSDL.exe`, install-state paths, scheduled-task names and Go module path) so existing installations and upgrades do not break for a cosmetic rename.
-
-A later major release can migrate those internals with an explicit compatibility/rollback plan.
 
 ## License
 
