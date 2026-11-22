@@ -551,6 +551,35 @@ function Poll-Install {
         Refresh-Health
     }
 }
+function Check-USBDevice {
+    $adb = Join-Path $script:InstallRoot 'runtime\tools\platform-tools\adb.exe'
+    if (-not (Test-Path -LiteralPath $adb)) {
+        $script:UI.UsbActivity.Text = 'USB tools missing; run setup first'
+        return
+    }
+    if ($script:UsbProcess -and -not $script:UsbProcess.HasExited) { return }
+    try {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $script:UsbOut) | Out-Null
+        Remove-Item -LiteralPath $script:UsbOut,$script:UsbErr -Force -ErrorAction SilentlyContinue
+        $script:UsbProcess = Start-Process -FilePath $adb -ArgumentList @('devices','-l') -WindowStyle Hidden -PassThru -RedirectStandardOutput $script:UsbOut -RedirectStandardError $script:UsbErr
+        $script:UI.UsbActivity.Text = 'Checking Android authorization...'
+    } catch { $script:UI.UsbActivity.Text = ('USB check failed: ' + $_.Exception.Message) }
+}
+function Poll-USBDevice {
+    if (-not $script:UsbProcess -or -not $script:UsbProcess.HasExited) { return }
+    try {
+        $raw = if (Test-Path -LiteralPath $script:UsbOut) { Get-Content -LiteralPath $script:UsbOut -Raw } else { '' }
+        $rows = @($raw -split '[\r\n]+' | Where-Object { $_ -match '^\S+\s+(device|unauthorized|offline)\b' })
+        $auth = @($rows | Where-Object { $_ -match '^\S+\s+device\b' })
+        $unauthed = @($rows | Where-Object { $_ -match '^\S+\s+unauthorized\b' })
+        if ($unauthed.Count -gt 0) { $script:UI.UsbActivity.Text = 'Approve USB debugging on Android' }
+        elseif ($auth.Count -eq 1 -and $rows.Count -eq 1) { $script:UI.UsbActivity.Text = 'Authorized Android found' }
+        elseif ($auth.Count -gt 1) { $script:UI.UsbActivity.Text = 'Disconnect extra devices' }
+        elseif ($rows.Count -gt 0) { $script:UI.UsbActivity.Text = 'Device offline; reconnect USB' }
+        else { $script:UI.UsbActivity.Text = 'No Android device found' }
+    } catch { $script:UI.UsbActivity.Text = 'USB check could not complete' }
+    $script:UsbProcess = $null
+}
 function Run-Doctor {
     if (-not (Test-Path -LiteralPath $script:RuntimeExe)) {
         Show-Message 'The integration is not installed yet. Run setup first.'
@@ -627,6 +656,51 @@ $script:UI.HeroDetails.Add_Click({ Show-Page 'Diagnostics' })
 $script:UI.OverviewGuide.Add_Click({ Show-Page 'Connect' })
 $script:UI.InstallButton.Add_Click({ Start-Setup })
 $script:UI.OpenLogsButton.Add_Click({ Show-Page 'Diagnostics'; Refresh-DiagnosticText })
+$script:UI.CheckUsbButton.Add_Click({ Check-USBDevice })
+$script:UI.CopyHostButton.Add_Click({
+    $address = [string]$script:UI.HostAddress.Text
+    if ($address -match '^\d{1,3}(\.\d{1,3}){3}
+$script:UI.SunshineButton.Add_Click({ Open-Link 'https://localhost:47990' })
+$script:UI.DoctorButton.Add_Click({ Run-Doctor })
+$script:UI.CopyButton.Add_Click({
+    try { [System.Windows.Clipboard]::SetText($script:UI.DiagnosticOutput.Text); Set-Feedback 'Diagnostic text copied. Check for private data before sharing.' }
+    catch { Show-Error ('Unable to copy: ' + $_.Exception.Message) }
+})
+$script:UI.ExportButton.Add_Click({ Export-Report })
+$script:UI.StartBridgeButton.Add_Click({ Invoke-BridgeCommand 'start' })
+$script:UI.StopBridgeButton.Add_Click({ Invoke-BridgeCommand 'stop' })
+$script:UI.ResetDeviceButton.Add_Click({
+    $answer = [System.Windows.MessageBox]::Show($window,
+        'Forget the currently enrolled Android device? You will need to authorize and enroll a device again. This does not remove Sunshine or Windows drivers.',
+        'Forget Android device?', 'YesNo', 'Warning')
+    if ($answer -eq 'Yes') { Invoke-BridgeCommand 'reset-device' }
+})
+$script:UI.OpenFolderButton.Add_Click({
+    if (Test-Path -LiteralPath $script:InstallRoot) { Start-Process -FilePath explorer.exe -ArgumentList ('"' + $script:InstallRoot + '"') }
+    else { Show-Message 'No installation folder exists yet.' }
+})
+$script:UI.HelpButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/blob/main/docs/TROUBLESHOOTING.md' })
+$script:UI.ReportButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/new/choose' })
+
+$timer = New-Object System.Windows.Threading.DispatcherTimer
+$timer.Interval = [TimeSpan]::FromSeconds(2)
+$script:Ticks = 0
+$timer.Add_Tick({
+    Poll-Install
+    Poll-Doctor
+    Poll-USBDevice
+    $script:Ticks++
+    if ($script:Ticks % 3 -eq 0) { Refresh-Health }
+})
+$window.Add_Loaded({ Refresh-Health; $timer.Start() })
+$window.Add_Closing({ $timer.Stop() })
+Show-Page 'Overview'
+[void]$window.ShowDialog()
+) {
+        [System.Windows.Clipboard]::SetText($address)
+        Set-Feedback 'Moonlight host address copied.'
+    } else { Show-Message 'No active host address yet. Connect Android and let the USB bridge start.' }
+})
 $script:UI.MoonlightButton.Add_Click({ Open-Link 'https://play.google.com/store/apps/details?id=com.limelight' })
 $script:UI.SunshineButton.Add_Click({ Open-Link 'https://localhost:47990' })
 $script:UI.DoctorButton.Add_Click({ Run-Doctor })
