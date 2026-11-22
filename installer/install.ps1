@@ -385,7 +385,19 @@ try {
         }
         Remove-Item -LiteralPath $previousPackage -Recurse -Force -ErrorAction SilentlyContinue
     }
-    Copy-Item -LiteralPath $desktopExe -Destination (Join-Path $script:InstallRoot 'OpenTabletDisplay.exe') -Force
+    $installedDesktop = Join-Path $script:InstallRoot 'OpenTabletDisplay.exe'
+    $sameDesktop = (Test-Path -LiteralPath $installedDesktop) -and
+        ((Get-FileHash -LiteralPath $installedDesktop -Algorithm SHA256).Hash -eq
+         (Get-FileHash -LiteralPath $desktopExe -Algorithm SHA256).Hash)
+    if (-not $sameDesktop) {
+        try {
+            Copy-Item -LiteralPath $desktopExe -Destination $installedDesktop -Force -ErrorAction Stop
+        } catch {
+            throw ('Native desktop app could not be replaced. Close any running installed OpenTabletDisplay window and retry: ' + $_.Exception.Message)
+        }
+    } else {
+        Write-FSDLLog 'Native desktop executable already matches the verified package; retaining in-use file.' $logPath
+    }
     $brandedAssets = Join-Path $packageRoot 'assets'
     if (-not (Test-Path -LiteralPath (Join-Path $brandedAssets 'OpenTabletDisplay.ico'))) {
         throw 'Release is missing the official Windows icon assets.'
