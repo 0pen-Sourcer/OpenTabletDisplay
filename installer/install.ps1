@@ -169,9 +169,20 @@ try {
             }
             Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
-        Start-Sleep -Seconds 6
-        $afterVdd = @(Get-FSDLVddDevices)
-        if ($afterVdd.Count -eq 0) { throw 'VDD installation returned success but ROOT\MttVDD did not enumerate.' }
+        # The PnP instance may be ROOT\DISPLAY even when the hardware ID is ROOT\MttVDD.
+        # Let PnP settle; never assume a driver is usable just because NefCon exited 0.
+        & pnputil.exe /scan-devices | Out-Null
+        $afterVdd = @(Wait-FSDLVdd 30)
+        if ($afterVdd.Count -eq 0) {
+            Write-FSDLLog 'NefCon returned success but Windows still exposes no ROOT\MttVDD hardware-ID match. Check Device Manager > Display adapters for a disabled or failed driver.' $logPath
+            throw 'Virtual Display Driver was not detected after installation; see Device Manager and installer diagnostics.'
+        }
+        $badVdd = @($afterVdd | Where-Object { $_.Status -ne 'OK' })
+        if ($badVdd.Count -gt 0) {
+            $desc = ($badVdd | ForEach-Object { $_.InstanceId + ' [' + $_.Status + ']' }) -join '; '
+            Write-FSDLLog ('VDD present but not healthy: ' + $desc) $logPath
+            throw ('Virtual Display Driver was found but Windows reports it is not healthy: ' + $desc)
+        }
         $vddAddedInstanceIds = @($afterVdd | Select-Object -ExpandProperty InstanceId)
         $afterDrivers = @(Get-FSDLDriverPublishedNames)
         $vddAddedDriverNames = @($afterDrivers | Where-Object { $beforeDrivers -notcontains $_ })
