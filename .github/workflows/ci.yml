@@ -74,6 +74,25 @@ jobs:
           if ($devices.Count -ne 1 -or $devices[0].InstanceId -ne 'ROOT\DISPLAY\0001') {
             throw 'VDD detection must use exact hardware IDs, not only ROOT\MTTVDD instance prefixes.'
           }
+      - name: Validate desktop WPF layout
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName PresentationFramework
+          $source = Get-Content installer/desktop.ps1 -Raw
+          $match = [regex]::Match($source, "(?s)\`$xaml = @'[\r\n]+(.*?)[\r\n]+'@")
+          if (-not $match.Success) { throw 'Desktop app XAML block is missing.' }
+          $xaml = $match.Groups[1].Value
+          $document = [xml]$xaml
+          if ($document.DocumentElement.LocalName -ne 'Window') { throw 'Desktop app must contain a WPF Window.' }
+          $window = [Windows.Markup.XamlReader]::Parse($xaml)
+          try {
+            if ($window.Title -ne 'OpenTabletDisplay') { throw 'Unexpected window title.' }
+            foreach ($name in @('OverviewPage','ConnectPage','DiagnosticsPage','SettingsPage','InstallButton','DiagnosticOutput')) {
+              if (-not $window.FindName($name)) { throw ('Missing UI control: ' + $name) }
+            }
+          } finally {
+            $window.Close()
+          }
       - name: Parse every PowerShell script
         shell: powershell
         run: |
