@@ -98,6 +98,26 @@ jobs:
         run: |
           powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File installer\desktop.ps1 -SmokeTest
           if ($LASTEXITCODE -ne 0) { throw 'Desktop PowerShell smoke test failed.' }
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build and inspect the Windows release archive
+        shell: powershell
+        run: |
+          ./scripts/build-release.ps1 -SkipTests
+          if ($LASTEXITCODE -ne 0) { throw 'Windows release build failed.' }
+          $archive = Get-ChildItem -LiteralPath dist -Filter 'OpenTabletDisplay-*-windows-x64.zip' -File | Select-Object -First 1
+          if (-not $archive) { throw 'Release archive was not produced.' }
+          $testRoot = Join-Path $env:RUNNER_TEMP 'otd-release-inspection'
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath $testRoot -Force
+          $bundle = Get-ChildItem -LiteralPath $testRoot -Directory | Select-Object -First 1
+          foreach ($required in @('OpenTabletDisplay.exe','installer\desktop.ps1','installer\install.ps1','payload\FSDL.exe','payload\probes\fsdl-probe-android-arm64')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $bundle.FullName $required))) { throw ('Release package missing: ' + $required) }
+          }
+          & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $bundle.FullName 'installer\desktop.ps1') -SmokeTest
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged app smoke test failed.' }
+          Remove-Item -LiteralPath $testRoot -Recurse -Force
       - name: Parse every PowerShell script
         shell: powershell
         run: |
