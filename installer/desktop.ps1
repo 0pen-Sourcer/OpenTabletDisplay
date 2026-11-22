@@ -1,4 +1,4 @@
-param()
+param([switch]$SmokeTest)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
@@ -707,6 +707,17 @@ $timer.Add_Tick({
     $script:Ticks++
     if ($script:Ticks % 3 -eq 0) { Refresh-Health }
 })
+# Windows CI exercises the real script and its event wiring without
+# starting an interactive message loop or modifying the test runner.
+if ($SmokeTest) {
+    Show-Page 'Overview'
+    Show-Page 'Connect'
+    Show-Page 'Diagnostics'
+    Refresh-Health
+    Refresh-DiagnosticText
+    Show-Page 'Overview'
+    return
+}
 $window.Add_Loaded({ Refresh-Health; $timer.Start() })
 $window.Add_Closing({ $timer.Stop() })
 Show-Page 'Overview'
