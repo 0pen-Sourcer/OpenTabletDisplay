@@ -8,34 +8,37 @@ OUT="$ROOT/dist/$PACKAGE"
 rm -rf "$ROOT/dist"
 mkdir -p "$OUT/payload/probes" "$OUT/installer"
 
-echo '[1/6] format + tests'
+echo '[1/7] format + tests'
 test -z "$(gofmt -l cmd internal)" || { echo 'gofmt required:'; gofmt -l cmd internal; exit 1; }
 go test ./...
 go vet ./...
 go test -race ./...
 go run ./cmd/fsdl --selftest
 
-echo '[2/6] Windows host binary'
+echo '[2/7] Windows host binary'
 # Keep the 3.x runtime binary name for installed-system compatibility.
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o "$OUT/payload/FSDL.exe" ./cmd/fsdl
 
-echo '[3/6] Android live-test probes'
+echo '[3/7] One-click desktop GUI launcher'
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags='-s -w -H=windowsgui' -o "$OUT/OpenTabletDisplay.exe" ./cmd/desktop
+
+echo '[4/7] Android live-test probes'
 GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o "$OUT/payload/probes/fsdl-probe-android-arm64" ./cmd/fsdl-probe
 
-echo '[4/6] installer + docs'
+echo '[5/7] installer + docs'
 cp installer/*.ps1 "$OUT/installer/"
 cp install.cmd status.cmd reset-device.cmd uninstall.cmd "$OUT/"
 cp README.md LICENSE THIRD_PARTY_NOTICES.md "$OUT/"
 mkdir -p "$OUT/docs"
 cp docs/COMPATIBILITY.md docs/MOONLIGHT.md docs/TROUBLESHOOTING.md "$OUT/docs/"
 
-echo '[5/6] checksums'
+echo '[6/7] checksums'
 (
   cd "$OUT"
   find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
 )
 
-echo '[6/6] zip'
+echo '[7/7] zip'
 ( cd "$ROOT/dist" && zip -qr "$PACKAGE.zip" "$PACKAGE" )
 ZIP="$ROOT/dist/$PACKAGE.zip"
 sha256sum "$ZIP" | tee "$ZIP.sha256"
