@@ -785,6 +785,20 @@ if ($SmokeTest) {
     return
 }
 $window.Add_Loaded({ Refresh-Health; $timer.Start() })
-$window.Add_Closing({ $timer.Stop() })
+$window.Add_Closing({
+    param($sender, $e)
+    if ($script:Installing) {
+        $choice = [System.Windows.MessageBox]::Show(
+            $window,
+            'Windows setup is still running with administrator permission. Closing this window will NOT cancel installation. Keep the control center open to watch progress?',
+            'Installation in progress', 'YesNo', 'Warning'
+        )
+        if ($choice -eq 'Yes') {
+            $e.Cancel = $true
+            return
+        }
+    }
+    $timer.Stop()
+})
 Show-Page 'Overview'
 [void]$window.ShowDialog()
