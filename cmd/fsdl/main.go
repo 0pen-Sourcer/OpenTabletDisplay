@@ -54,10 +54,27 @@ func main() {
 
 	app := bridge.New(rootDir())
 	if arg == "daemon" {
+		// The agent can run without a console window. Keep diagnostics in a
+		// user-local append-only log instead of hosting a PowerShell loop.
+		logDir := filepath.Join(rootDir(), "runtime")
+		if err := os.MkdirAll(logDir, 0o700); err != nil {
+			fmt.Fprintln(os.Stderr, "Agent log directory:", err)
+			os.Exit(1)
+		}
+		logFile, err := os.OpenFile(filepath.Join(logDir, "agent.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Agent log:", err)
+			os.Exit(1)
+		}
+		defer logFile.Close()
+		app.Out = func(format string, args ...any) {
+			_, _ = fmt.Fprintf(logFile, "[%s] %s\n", time.Now().Format(time.RFC3339), fmt.Sprintf(format, args...))
+		}
+		app.Out("Starting OpenTabletDisplay USB agent %s", bridge.Version)
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 		if err := app.Daemon(ctx); err != nil {
-			fmt.Fprintln(os.Stderr, "FAILED:", err)
+			app.Out("Agent stopped with error: %v", err)
 			os.Exit(1)
 		}
 		return
