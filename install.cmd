@@ -15,7 +15,7 @@ if not exist "%~dp0payload\probes" (
     set "installExitCode=1"
     goto done
 )
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0installer\install.ps1" %*
+powershell.exe -NoProfile -File "%~dp0installer\install.ps1" %*
 set "installExitCode=%errorlevel%"
 :done
 if not "%installExitCode%"=="0" (
