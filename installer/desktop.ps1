@@ -11,6 +11,9 @@ $script:InstallProcess = $null
 $script:DiagnosticProcess = $null
 $script:Installing = $false
 $script:InstallFinished = $false
+$script:UsbProcess = $null
+$script:UsbOut = Join-Path $script:InstallRoot 'logs\usb-check.txt'
+$script:UsbErr = Join-Path $script:InstallRoot 'logs\usb-check-error.txt'
 $script:LastInstallMessage = ''
 $script:LastActivity = ''
 $script:LastDiagnosticText = ''
@@ -254,13 +257,27 @@ $xaml = @'
                 <TextBlock Text="Plug in a USB data cable." Style="{StaticResource Heading}" Margin="0,9,0,7"/>
                 <TextBlock Text="Enable Developer options → USB debugging. Unlock Android and approve the Windows computer when prompted. Leave normal USB tethering OFF." Style="{StaticResource Muted}"/>
                 <TextBlock Text="You may see one Android VPN/connection permission from gnirehtet. Approve it to carry the stream over USB." Style="{StaticResource Muted}" Margin="0,11,0,0"/>
+                <StackPanel Orientation="Horizontal" Margin="0,17,0,0">
+                  <Button x:Name="CheckUsbButton" Content="Check connected device" Style="{StaticResource SecondaryButton}"/>
+                  <TextBlock x:Name="UsbActivity" Text="Not checked yet" Style="{StaticResource Muted}" Margin="14,10,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
               </StackPanel>
             </Border>
             <Border Style="{StaticResource Card}" Margin="0,0,0,18">
               <StackPanel>
                 <TextBlock Text="03  •  SET UP MOONLIGHT" Style="{StaticResource Eyebrow}"/>
                 <TextBlock Text="Pair with your Windows PC." Style="{StaticResource Heading}" Margin="0,9,0,7"/>
-                <TextBlock Text="Install the official Moonlight Game Streaming app on Android. Use the host address from diagnostics and pair using Sunshine's web UI." Style="{StaticResource Muted}" Margin="0,0,0,17"/>
+                <TextBlock Text="Install the official Moonlight Game Streaming app on Android. Pair using the host address below and Sunshine's web UI." Style="{StaticResource Muted}" Margin="0,0,0,17"/>
+                <Border Background="#0E1928" CornerRadius="10" Padding="13" Margin="0,0,0,13">
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Text="MOONLIGHT HOST ADDRESS" Style="{StaticResource Eyebrow}"/>
+                      <TextBlock x:Name="HostAddress" Text="Available after USB connection" Foreground="#EAF3FF" FontSize="16" FontWeight="SemiBold" Margin="0,5,0,0"/>
+                    </StackPanel>
+                    <Button x:Name="CopyHostButton" Content="Copy address" Grid.Column="1" Style="{StaticResource SecondaryButton}" VerticalAlignment="Center" Padding="12,8" MinHeight="35"/>
+                  </Grid>
+                </Border>
                 <StackPanel Orientation="Horizontal">
                   <Button x:Name="MoonlightButton" Content="Get Moonlight" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0"/>
                   <Button x:Name="SunshineButton" Content="Open Sunshine settings" Style="{StaticResource SecondaryButton}"/>
@@ -365,7 +382,7 @@ $names = @(
     'OverviewPage','ConnectPage','DiagnosticsPage','SettingsPage','NavOverview','NavConnect','NavDiagnostics','NavSettings',
     'RefreshButton','PageEyebrow','PageHeading','PageSubheading','HeroTitle','HeroDescription','HeroSetup','HeroDetails',
     'AppStatus','AppDetail','SunStatus','DriverStatus','DeviceStatus','SidebarDot','SidebarState','OverviewGuide',
-    'InstallButton','OpenLogsButton','InstallProgress','InstallActivity','MoonlightButton','SunshineButton','DoctorButton',
+    'InstallButton','OpenLogsButton','InstallProgress','InstallActivity','MoonlightButton','SunshineButton','CheckUsbButton','UsbActivity','HostAddress','CopyHostButton','DoctorButton',
     'ExportButton','CopyButton','DiagnosticOutput','StartBridgeButton','StopBridgeButton','ResetDeviceButton',
     'OpenFolderButton','HelpButton','ReportButton','FooterText'
 )
@@ -438,6 +455,11 @@ function Get-Health {
     $sunshine = if (-not $svc) { 'Not installed' } elseif ($svc.Status -eq 'Running') { 'Running' } else { [string]$svc.Status }
     $vdd = @(Get-FSDLVddDevices)
     $driver = if ($vdd.Count -eq 0) { 'Not detected' } elseif (@($vdd | Where-Object { $_.Status -eq 'OK' }).Count -gt 0) { 'Detected' } else { 'Needs attention' }
+    $sessionPath = Join-Path $script:InstallRoot 'runtime\state.json'
+    $hostAddress = ''
+    if (Test-Path -LiteralPath $sessionPath) {
+        try { $hostAddress = [string](Get-Content -LiteralPath $sessionPath -Raw | ConvertFrom-Json).host_ip } catch {}
+    }
     $enrollment = Join-Path $script:InstallRoot 'enrollment.json'
     $device = if (Test-Path -LiteralPath $enrollment) { 'Enrolled' } else { 'Not paired' }
     $task = Get-ScheduledTask -TaskName $script:TaskName -ErrorAction SilentlyContinue
@@ -446,6 +468,7 @@ function Get-Health {
         Sunshine = $sunshine
         Driver = $driver
         Device = $device
+        Host = $hostAddress
         Agent = if ($task) { [string]$task.State } else { 'Not installed' }
     }
 }
@@ -457,6 +480,7 @@ function Refresh-Health {
         $script:UI.SunStatus.Text = $h.Sunshine
         $script:UI.DriverStatus.Text = $h.Driver
         $script:UI.DeviceStatus.Text = $h.Device
+        $script:UI.HostAddress.Text = if ($h.Host) { $h.Host } else { 'Available after USB connection' }
         if ($h.Installed -and $h.Sunshine -eq 'Running' -and $h.Driver -eq 'Detected') {
             $script:UI.HeroTitle.Text = 'Your second screen is ready.'
             $script:UI.HeroDescription.Text = 'Connect an authorized Android device over USB and launch Desktop in Moonlight.'
