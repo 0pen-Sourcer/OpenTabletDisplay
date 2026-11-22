@@ -12,7 +12,7 @@ OpenTabletDisplay's everyday desktop interface is now a **compiled, self-contain
 6. Select **My devices → Scan connected Android devices**. Choose an authorized device to enroll; no automatic enrollment of unknown or additional devices.
 7. Install the official Moonlight app on Android, pair with Sunshine through its local web UI, then open Desktop. A one-time gnirehtet VPN connection prompt may appear; ordinary Android USB tethering must remain OFF.
 
-After setup, normal use should be cable → Android authorization (if necessary) → Moonlight Desktop. It is not necessary to keep OpenTabletDisplay's control window open.
+After setup, normal use should be cable → Android authorization (if necessary) → Moonlight Desktop. It is not necessary to keep OpenTabletDisplay's control window open. A dedicated no-console Go agent runs as a limited-user scheduled task at login; there is no background PowerShell desktop or watchdog.
 
 ## Native Windows controls
 
@@ -51,6 +51,6 @@ Open **Diagnostics**, inspect the latest installation and USB preparation error,
 1. Windows CI builds a self-contained WPF EXE, runs its offline window/serial/redaction smoke test, checks exact package files and embedded icon, and verifies SHA-256.
 2. Real Windows 10/11 install and uninstall (including existing Sunshine) without settings loss, standard-user account tests, accessibility and scaling checks.
 3. Real Android USB authorization, gnirehtet/VPN permission, Moonlight stream, touch, resolution, sleep/reconnect and multiple-device tests.
-4. Trusted code signing for OpenTabletDisplay.exe AND FSDL.exe, plus documented source/build provenance and security review.
+4. Trusted code signing for OpenTabletDisplay.exe, FSDL.exe AND FSDL-Agent.exe, plus documented source/build provenance and security review.
 
 Until these requirements pass, this remains an **unsigned development release candidate**, not production-safe proof for general consumers.
