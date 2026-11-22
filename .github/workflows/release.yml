@@ -50,7 +50,7 @@ jobs:
             if (-not $tool) { throw 'Windows SDK signtool not found.' }
             $package = Get-ChildItem dist -Directory -Filter 'OpenTabletDisplay-*-windows-x64' | Select-Object -First 1
             if (-not $package) { throw 'Package directory missing.' }
-            foreach ($relative in @('OpenTabletDisplay.exe','payload\FSDL.exe')) {
+            foreach ($relative in @('OpenTabletDisplay.exe','payload\FSDL.exe','payload\FSDL-Agent.exe')) {
               $exe = Join-Path $package.FullName $relative
               & $tool.FullName sign /fd SHA256 /sha1 $cert.Thumbprint /tr http://timestamp.digicert.com /td SHA256 $exe
               if ($LASTEXITCODE -ne 0) { throw ('Signing failed: ' + $relative) }
