@@ -134,7 +134,7 @@ $xaml = @'
         <StackPanel DockPanel.Dock="Top">
           <StackPanel Orientation="Horizontal" Margin="7,2,0,40" VerticalAlignment="Center">
             <Border Background="#397CF4" Width="38" Height="38" CornerRadius="11">
-              <TextBlock Text="▣" Foreground="White" FontSize="25" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              <Image x:Name="SidebarLogo" Width="38" Height="38" Stretch="Uniform"/>
             </Border>
             <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
               <TextBlock Text="OpenTablet" Foreground="#F5F8FF" FontSize="17" FontWeight="Bold"/>
@@ -403,7 +403,25 @@ try {
     exit 1
 }
 
+$iconCandidates = @(
+    (Join-Path (Split-Path -Parent $PSScriptRoot) 'assets\OpenTabletDisplay.ico'),
+    (Join-Path $PSScriptRoot 'assets\OpenTabletDisplay.ico'),
+    (Join-Path $script:InstallRoot 'assets\OpenTabletDisplay.ico')
+)
+foreach ($candidate in $iconCandidates) {
+    if (Test-Path -LiteralPath $candidate) {
+        try {
+            $iconFrame = [System.Windows.Media.Imaging.BitmapFrame]::Create(
+                [System.Uri]::new([System.IO.Path]::GetFullPath($candidate)))
+            $window.Icon = $iconFrame
+            $window.FindName('SidebarLogo').Source = $iconFrame
+            break
+        } catch {}
+    }
+}
+
 $names = @(
+    'SidebarLogo',
     'OverviewPage','ConnectPage','DiagnosticsPage','SettingsPage','NavOverview','NavConnect','NavDiagnostics','NavSettings',
     'RefreshButton','PageEyebrow','PageHeading','PageSubheading','HeroTitle','HeroDescription','HeroSetup','HeroDetails',
     'AppStatus','AppDetail','SunStatus','DriverStatus','DeviceStatus','SidebarDot','SidebarState','OverviewGuide',
