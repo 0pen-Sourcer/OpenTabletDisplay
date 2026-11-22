@@ -5,6 +5,16 @@ if not exist "%~dp0installer\install.ps1" (
     set "installExitCode=1"
     goto done
 )
+if not exist "%~dp0payload\FSDL.exe" (
+    echo ERROR: Windows runtime payload missing. Download the packaged ZIP from Releases, not GitHub's Source code ZIP.
+    set "installExitCode=1"
+    goto done
+)
+if not exist "%~dp0payload\probes" (
+    echo ERROR: Android probe payload missing. Re-extract the complete release ZIP.
+    set "installExitCode=1"
+    goto done
+)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0installer\install.ps1" %*
 set "installExitCode=%errorlevel%"
 :done
