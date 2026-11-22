@@ -31,25 +31,30 @@ if ($LASTEXITCODE -ne 0) { throw 'go test -race failed' }
 go run ./cmd/fsdl --selftest
 if ($LASTEXITCODE -ne 0) { throw 'selftest failed' }
 
-Write-Host '[3/7] Windows host binary'
+Write-Host '[3/8] Windows host binary'
 $env:GOOS='windows'; $env:GOARCH='amd64'; $env:CGO_ENABLED='0'
 # Keep the 3.x runtime binary name for installed-system compatibility.
 go build -trimpath -ldflags '-s -w' -o (Join-Path $Out 'payload\FSDL.exe') ./cmd/fsdl
 if ($LASTEXITCODE -ne 0) { throw 'Windows build failed' }
 
-Write-Host '[4/7] Android live-test probe'
+Write-Host '[4/8] Desktop GUI launcher'
+$env:GOOS='windows'; $env:GOARCH='amd64'; $env:CGO_ENABLED='0'
+go build -trimpath -ldflags '-s -w -H=windowsgui' -o (Join-Path $Out 'OpenTabletDisplay.exe') ./cmd/desktop
+if ($LASTEXITCODE -ne 0) { throw 'Desktop launcher build failed' }
+
+Write-Host '[5/8] Android live-test probe'
 $env:GOOS='android'; $env:GOARCH='arm64'; $env:CGO_ENABLED='0'
 go build -trimpath -ldflags '-s -w' -o (Join-Path $Out 'payload\probes\fsdl-probe-android-arm64') ./cmd/fsdl-probe
 if ($LASTEXITCODE -ne 0) { throw 'Android ARM64 probe build failed' }
 
-Write-Host '[5/7] installer + docs'
+Write-Host '[6/8] installer + docs'
 Copy-Item installer\*.ps1 (Join-Path $Out 'installer')
 Copy-Item install.cmd,status.cmd,reset-device.cmd,uninstall.cmd $Out
 Copy-Item README.md,LICENSE,THIRD_PARTY_NOTICES.md $Out
 New-Item -ItemType Directory -Force -Path (Join-Path $Out 'docs') | Out-Null
 Copy-Item docs\COMPATIBILITY.md,docs\MOONLIGHT.md,docs\TROUBLESHOOTING.md (Join-Path $Out 'docs')
 
-Write-Host '[6/7] checksums'
+Write-Host '[7/8] checksums'
 $checksumPath = Join-Path $Out 'SHA256SUMS.txt'
 $rows = Get-ChildItem -LiteralPath $Out -File -Recurse | Where-Object { $_.FullName -ne $checksumPath } | Sort-Object FullName | ForEach-Object {
     $rel = $_.FullName.Substring($Out.Length + 1).Replace('\','/')
@@ -57,7 +62,7 @@ $rows = Get-ChildItem -LiteralPath $Out -File -Recurse | Where-Object { $_.FullN
 }
 $rows | Set-Content -LiteralPath $checksumPath -Encoding ASCII
 
-Write-Host '[7/7] zip'
+Write-Host '[8/8] zip'
 $zip = Join-Path $DistRoot ($Package + '.zip')
 Compress-Archive -LiteralPath $Out -DestinationPath $zip -CompressionLevel Optimal
 $zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
