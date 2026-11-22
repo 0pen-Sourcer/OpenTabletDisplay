@@ -115,7 +115,7 @@ jobs:
           if (-not $archive) { throw 'Release archive was not produced.' }
           $testRoot = Join-Path $env:RUNNER_TEMP 'otd-release-inspection'
           Expand-Archive -LiteralPath $archive.FullName -DestinationPath $testRoot -Force
-          $bundle = Get-ChildItem -LiteralPath $testRoot -Directory | Select-Object -First 1
+          $bundle = Get-Item -LiteralPath $testRoot
           foreach ($required in @('OpenTabletDisplay.exe','assets\OpenTabletDisplay.ico','assets\OpenTabletDisplay.png','installer\desktop.ps1','installer\install.ps1','payload\FSDL.exe','payload\probes\fsdl-probe-android-arm64')) {
             if (-not (Test-Path -LiteralPath (Join-Path $bundle.FullName $required))) { throw ('Release package missing: ' + $required) }
           }
