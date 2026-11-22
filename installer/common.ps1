@@ -37,6 +37,13 @@ function Invoke-FSDLElevatedSelf([string]$ScriptPath, [string[]]$ForwardArgs) {
     return $p.ExitCode
 }
 
+function Initialize-FSDLInstallLog([string]$LogPath) {
+    $dir = Split-Path -Parent $LogPath
+    if (-not $dir) { throw 'Install log path must have a parent directory.' }
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    Set-Content -LiteralPath $LogPath -Value ('OpenTabletDisplay ' + $script:FSDLVersion + ' install ' + (Get-Date -Format o)) -Encoding UTF8
+}
+
 function Write-FSDLLog([string]$Message, [string]$LogPath) {
     $line = '[' + (Get-Date -Format 'HH:mm:ss') + '] ' + $Message
     Write-Host $line
