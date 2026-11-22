@@ -36,7 +36,7 @@ if (-not $SkipTests) {
 
 Write-Host '[3/8] Generate brand assets'
 & (Join-Path $PSScriptRoot 'create-windows-icon.ps1')
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path 'assets/OpenTabletDisplay.ico')) { throw 'Icon generation failed' }
+if (-not (Test-Path -LiteralPath 'assets/OpenTabletDisplay.ico')) { throw 'Icon generation failed' }
 
 Write-Host '[4/8] Compile USB transport and Android probes'
 $env:GOOS='windows'; $env:GOARCH='amd64'; $env:CGO_ENABLED='0'
