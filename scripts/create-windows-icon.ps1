@@ -1,5 +1,5 @@
-# Produce a native multi-size ICO and a COFF resource for Go's Windows linker.
-# Uses only Windows WPF + Windows SDK/MSVC tools; no downloaded binaries.
+# Produce native PNG and multi-size ICO assets using only Windows WPF.
+# No third-party icon libraries, network downloads or native resource shims.
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
@@ -8,7 +8,6 @@ $assets = Join-Path $root 'assets'
 New-Item -ItemType Directory -Force -Path $assets | Out-Null
 $icoPath = Join-Path $assets 'OpenTabletDisplay.ico'
 $pngPath = Join-Path $assets 'OpenTabletDisplay.png'
-$sysoPath = Join-Path $root 'cmd\desktop\rsrc_windows_amd64.syso'
 
 function Brush([string]$c) {
     return [System.Windows.Media.SolidColorBrush]::new(
@@ -96,16 +95,4 @@ try {
     $w.Flush()
 } finally { $stream.Dispose() }
 
-# The Microsoft cvtres.exe COFF format is not accepted by Go's PE linker
-# (sectnum < 0). Use the small, pinned MIT-licensed Go-native resource tool.
-# Build-time only: not bundled or executed on end-user devices.
-Push-Location $root
-try {
-    & go run github.com/akavel/rsrc@v0.10.2 -arch amd64 -ico $icoPath -o $sysoPath
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $sysoPath)) {
-        throw 'Failed to generate Go-compatible embedded Windows icon resource.'
-    }
-} finally {
-    Pop-Location
-}
-Write-Host 'Created multi-size Windows icon and Go-compatible executable resource.'
+Write-Host 'Generated native high-resolution PNG and multi-size ICO for the compiled WPF application.'
