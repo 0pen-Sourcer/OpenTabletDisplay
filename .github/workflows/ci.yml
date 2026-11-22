@@ -42,6 +42,23 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Bootstrap installer log in a clean directory
+        shell: powershell
+        run: |
+          . ./installer/common.ps1
+          $root = Join-Path $env:RUNNER_TEMP ('otd-bootstrap-' + [guid]::NewGuid().ToString('N'))
+          $logPath = Join-Path $root 'logs\install.log'
+          try {
+            if (Test-Path $root) { throw 'Expected a clean test directory.' }
+            Initialize-FSDLInstallLog $logPath
+            if (-not (Test-Path -LiteralPath $logPath)) { throw 'Installer failed to create its first-run log.' }
+            $content = Get-Content -LiteralPath $logPath -Raw
+            if (-not $content.StartsWith('OpenTabletDisplay ' + $script:FSDLVersion + ' install ')) {
+              throw 'Installer log header was not written.'
+            }
+          } finally {
+            Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+          }
       - name: Parse every PowerShell script
         shell: powershell
         run: |
