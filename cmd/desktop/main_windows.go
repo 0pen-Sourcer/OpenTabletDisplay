@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -58,7 +59,15 @@ func main() {
 	command := exec.Command(powershell, "-NoProfile", "-STA", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", script)
 	command.Dir = root
 	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	if err := command.Start(); err != nil {
-		showError(fmt.Sprintf("Could not open the Windows interface:\n%s\n\nIf Windows PowerShell is disabled by policy, contact your administrator.", err))
+	output, err := command.CombinedOutput()
+	if err != nil {
+		details := strings.TrimSpace(string(output))
+		if len(details) > 900 {
+			details = details[len(details)-900:]
+		}
+		if details == "" {
+			details = "Check Windows PowerShell and application installation files."
+		}
+		showError(fmt.Sprintf("OpenTabletDisplay could not start its Windows interface:\n%s\n\n%s", err, details))
 	}
 }
