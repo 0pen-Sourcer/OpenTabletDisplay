@@ -87,8 +87,9 @@ The stream packets themselves travel through USB, but stable **v3.1.1** still us
 
 ## Install
 
-1. Download and extract the latest [Windows release ZIP](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest). **Do not use GitHub's auto-generated “Source code” ZIP**: it does not contain the built `payload\FSDL.exe` runtime.
-2. Run **`install.cmd`**. Keep its window open to read any setup errors; if installation fails after starting, see `%LOCALAPPDATA%\FSDL\logs\install.log` (when present).
+1. Download and extract the latest [Windows release ZIP](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest). **Do not use GitHub's “Source code” ZIP**: it omits the built runtime and launcher.
+2. Double-click **`OpenTabletDisplay.exe`** to open the Windows control center, then choose **Install / repair**. Administrator approval is needed only to install system components. The legacy `install.cmd` remains available for diagnostics and scripted setup.
+3. The app shows setup progress, driver health, device guidance and logs; after installation it is also available from the Start Menu.
 3. Install official **Moonlight Game Streaming** on Android.
 4. Enable **Developer options → USB debugging**.
 5. Connect a data-capable USB cable and approve the PC's RSA debugging prompt.
