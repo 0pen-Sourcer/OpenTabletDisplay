@@ -90,8 +90,16 @@ jobs:
           Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class IconCheck { [DllImport("shell32.dll", CharSet=CharSet.Unicode)] public static extern uint ExtractIconEx(string file, int index, IntPtr[] large, IntPtr[] small, uint count); }'
           $appExe = Join-Path $testRoot 'OpenTabletDisplay.exe'
           if ([IconCheck]::ExtractIconEx($appExe, -1, $null, $null, 0) -lt 1) { throw 'Embedded Windows icon missing.' }
-          & $appExe --selftest
-          if ($LASTEXITCODE -ne 0) { throw ('Native WPF smoke test failed: exit ' + $LASTEXITCODE) }
+          # GUI-subsystem EXEs launch asynchronously from PowerShell; explicitly
+          # wait for the native WPF process rather than trusting $LASTEXITCODE.
+          $smoke = Start-Process -FilePath $appExe -ArgumentList '--selftest' -PassThru
+          try {
+            if (-not $smoke.WaitForExit(45000)) {
+              $smoke.Kill()
+              throw 'Native WPF self-test timed out after 45 seconds.'
+            }
+            if ($smoke.ExitCode -ne 0) { throw ('Native WPF smoke test failed: exit ' + $smoke.ExitCode) }
+          } finally { $smoke.Dispose() }
           $manifestRows = @(Get-Content (Join-Path $testRoot 'SHA256SUMS.txt'))
           foreach ($row in $manifestRows) {
             if ($row -notmatch '^([0-9a-f]{64})  (.+)$') { throw ('Invalid SHA256 manifest entry: ' + $row) }
@@ -99,7 +107,12 @@ jobs:
             if (-not (Test-Path $target)) { throw ('Missing hashed file: ' + $target) }
             if ((Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $matches[1]) { throw ('Payload checksum mismatch: ' + $target) }
           }
-          Remove-Item $testRoot -Recurse -Force
+          # Windows may briefly retain a mapped EXE while releasing the process.
+          for ($attempt = 0; $attempt -lt 10; $attempt++) {
+            try { Remove-Item $testRoot -Recurse -Force -ErrorAction Stop; break }
+            catch { Start-Sleep -Milliseconds 300 }
+          }
+          if (Test-Path $testRoot) { throw 'Test executable remains locked after the native app should have exited.' }
       - name: Parse every PowerShell script
         shell: powershell
         run: |
