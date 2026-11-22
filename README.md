@@ -1,5 +1,8 @@
 # OpenTabletDisplay
 
+> **Installer advisory (November 2026):** The published v3.1.1 ZIP has a confirmed fresh-install logging defect and can incorrectly reject a Virtual Display Driver registered under a ROOT\DISPLAY instance. Read [known issue #11](https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/11) before attempting a new install. A redesigned 3.2 release candidate is under [review in PR #10](https://github.com/0pen-Sourcer/OpenTabletDisplay/pull/10), but has **not yet passed end-to-end physical USB/tablet validation**. Do not treat its CI success as hardware compatibility confirmation.
+
+
 [![CI](https://github.com/0pen-Sourcer/OpenTabletDisplay/actions/workflows/ci.yml/badge.svg)](https://github.com/0pen-Sourcer/OpenTabletDisplay/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/0pen-Sourcer/OpenTabletDisplay)](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)](docs/COMPATIBILITY.md)
 
 ![OpenTabletDisplay — Android as a real wired Windows second monitor](docs/assets/open-tablet-display-hero.svg)
