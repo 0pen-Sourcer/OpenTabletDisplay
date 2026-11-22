@@ -30,7 +30,7 @@ cp installer/*.ps1 "$OUT/installer/"
 cp install.cmd status.cmd reset-device.cmd uninstall.cmd "$OUT/"
 cp README.md LICENSE THIRD_PARTY_NOTICES.md "$OUT/"
 mkdir -p "$OUT/docs"
-cp docs/COMPATIBILITY.md docs/MOONLIGHT.md docs/TROUBLESHOOTING.md "$OUT/docs/"
+cp docs/DESKTOP_APP.md docs/COMPATIBILITY.md docs/MOONLIGHT.md docs/TROUBLESHOOTING.md "$OUT/docs/"
 
 echo '[6/7] checksums'
 (
