@@ -17,8 +17,10 @@ if (-not [Environment]::Is64BitOperatingSystem) {
 
 $packageRoot = Split-Path -Parent $PSScriptRoot
 $payloadExe = Join-Path $packageRoot 'payload\FSDL.exe'
+$payloadAgent = Join-Path $packageRoot 'payload\FSDL-Agent.exe'
 $payloadProbes = Join-Path $packageRoot 'payload\probes'
 if (-not (Test-Path $payloadExe)) { throw ('Release payload is incomplete: ' + $payloadExe) }
+if (-not (Test-Path $payloadAgent)) { throw ('Release agent payload is incomplete: ' + $payloadAgent) }
 if (-not (Test-Path $payloadProbes)) { throw ('Release payload is incomplete: ' + $payloadProbes) }
 $desktopExe = Join-Path $packageRoot 'OpenTabletDisplay.exe'
 if (-not (Test-Path -LiteralPath $desktopExe)) {
@@ -31,6 +33,11 @@ $expected = @((Get-Content -LiteralPath $manifest) | Where-Object { $_ -match '^
 if ($expected.Count -ne 1) { throw 'Package manifest has no unambiguous helper hash.' }
 if ((Get-FileHash -LiteralPath $payloadExe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected[0].Substring(0,64)) {
     throw 'USB helper failed package integrity verification. Redownload the official archive.'
+}
+$agentHash = @((Get-Content -LiteralPath $manifest) | Where-Object { $_ -match '^[0-9a-f]{64}  payload/FSDL-Agent\.exe$' })
+if ($agentHash.Count -ne 1 -or
+    (Get-FileHash -LiteralPath $payloadAgent -Algorithm SHA256).Hash.ToLowerInvariant() -ne $agentHash[0].Substring(0,64)) {
+    throw 'Background agent failed package integrity verification.'
 }
 
 New-Item -ItemType Directory -Force -Path $script:InstallRoot | Out-Null
@@ -83,14 +90,14 @@ try {
     Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path (Join-Path $staging 'probes') | Out-Null
     Copy-Item -LiteralPath $payloadExe -Destination (Join-Path $staging 'FSDL.exe') -Force
+    Copy-Item -LiteralPath $payloadAgent -Destination (Join-Path $staging 'FSDL-Agent.exe') -Force
     Copy-Item -Path (Join-Path $payloadProbes '*') -Destination (Join-Path $staging 'probes') -Force
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'agent.ps1') -Destination (Join-Path $staging 'agent.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'uninstall.ps1') -Destination (Join-Path $staging 'uninstall.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'status.ps1') -Destination (Join-Path $staging 'status.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'reset-device.ps1') -Destination (Join-Path $staging 'reset-device.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'common.ps1') -Destination (Join-Path $staging 'common.ps1') -Force
 
-    foreach ($name in @('FSDL.exe','agent.ps1','uninstall.ps1','status.ps1','reset-device.ps1','common.ps1')) {
+    foreach ($name in @('FSDL.exe','FSDL-Agent.exe','uninstall.ps1','status.ps1','reset-device.ps1','common.ps1')) {
         Copy-Item -LiteralPath (Join-Path $staging $name) -Destination (Join-Path $script:InstallRoot $name) -Force
     }
     $probeTarget = Join-Path $script:InstallRoot 'probes'
@@ -356,6 +363,7 @@ try {
         Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File |
             Where-Object { $_.Name -ne 'desktop.ps1' } | Copy-Item -Destination (Join-Path $pendingPackage 'installer') -Force
         Copy-Item -LiteralPath $payloadExe -Destination (Join-Path $pendingPackage 'payload\FSDL.exe') -Force
+        Copy-Item -LiteralPath $payloadAgent -Destination (Join-Path $pendingPackage 'payload\FSDL-Agent.exe') -Force
         Copy-Item -Path (Join-Path $payloadProbes '*') -Destination (Join-Path $pendingPackage 'payload\probes') -Force
         Copy-Item -LiteralPath $desktopExe -Destination (Join-Path $pendingPackage 'OpenTabletDisplay.exe') -Force
         foreach ($name in @('install.cmd','status.cmd','reset-device.cmd','uninstall.cmd')) {
@@ -410,10 +418,9 @@ try {
     # A failed setup must never be mistaken for an installed application.
     # Hidden reconnect agent. Limited privileges are sufficient after installation.
     $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-    $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $agent = Join-Path $script:InstallRoot 'agent.ps1'
-    $actionArgs = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $agent + '"'
-    $action = New-ScheduledTaskAction -Execute $psExe -Argument $actionArgs
+    $agent = Join-Path $script:InstallRoot 'FSDL-Agent.exe'
+    # A native, no-console user task, never a hidden powershell.exe startup job.
+    $action = New-ScheduledTaskAction -Execute $agent -Argument 'daemon' -WorkingDirectory $script:InstallRoot
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
     $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero)
@@ -421,6 +428,8 @@ try {
     Start-ScheduledTask -TaskName $script:TaskName
     $createdTask = $true
     Save-FSDLJson $state $script:InstallStatePath
+    # Legacy 3.2 script hosts are now obsolete; remove only app-owned files.
+    Remove-Item -LiteralPath (Join-Path $script:InstallRoot 'desktop.ps1'), (Join-Path $script:InstallRoot 'agent.ps1') -Force -ErrorAction SilentlyContinue
 
     # Register a normal uninstall entry so the extracted release folder can be deleted.
     $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FSDL'
