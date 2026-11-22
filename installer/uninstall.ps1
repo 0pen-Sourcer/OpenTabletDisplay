@@ -99,6 +99,8 @@ try {
 # only our known application root using PowerShell's literal-path API after
 # restoring ownership-scoped settings and unregistering the background task.
 Write-Host 'Uninstalling OpenTabletDisplay application files.' -ForegroundColor Cyan
+# Give the user-facing native GUI a chance to exit and release its EXE handle.
+Start-Sleep -Seconds 2
 try {
     Remove-Item -LiteralPath $script:InstallRoot -Recurse -Force -ErrorAction Stop
     Write-Host 'OpenTabletDisplay removed. Sunshine and unrelated drivers were preserved.' -ForegroundColor Green
