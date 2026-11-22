@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.2.0-rc.1 — Native Windows app and installation reliability (unreleased)
+## 3.2.0-rc.2 — Native Windows app and installation reliability (unreleased)
 
 - Added a Windows desktop control center with first-run setup, live component health, Android connection guidance, diagnostic reports and safe device actions.
 - Shipped a one-click GUI subsystem launcher, integrated installer, user Start Menu shortcut and local repair cache.
