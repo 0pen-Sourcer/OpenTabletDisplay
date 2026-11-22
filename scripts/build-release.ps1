@@ -1,3 +1,4 @@
+param([switch]$SkipTests)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
@@ -19,7 +20,8 @@ Get-ChildItem -LiteralPath 'installer' -Filter '*.ps1' -File | ForEach-Object {
 }
 if ($parseErrors.Count -gt 0) { $parseErrors | Format-List | Out-String | Write-Error; throw 'PowerShell parse failed.' }
 
-Write-Host '[2/7] format + tests'
+Write-Host '[2/8] format + tests'
+if (-not $SkipTests) {
 $unformatted = @(gofmt -l cmd internal)
 if ($unformatted.Count -gt 0) { throw ('gofmt required: ' + ($unformatted -join ', ')) }
 go test ./...
@@ -30,6 +32,9 @@ go test -race ./...
 if ($LASTEXITCODE -ne 0) { throw 'go test -race failed' }
 go run ./cmd/fsdl --selftest
 if ($LASTEXITCODE -ne 0) { throw 'selftest failed' }
+} else {
+    Write-Host 'Tests skipped in Windows packaging smoke; Ubuntu CI runs the full test suite.'
+}
 
 Write-Host '[3/8] Windows host binary'
 $env:GOOS='windows'; $env:GOARCH='amd64'; $env:CGO_ENABLED='0'
