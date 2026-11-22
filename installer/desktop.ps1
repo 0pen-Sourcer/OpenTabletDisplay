@@ -161,7 +161,7 @@ $xaml = @'
               <TextBlock x:Name="SidebarState" Text="Checking system" Foreground="#D1DEEF" FontSize="12"/>
             </StackPanel>
           </Border>
-          <TextBlock Text="Windows 10 / 11  •  v3.2 RC" Foreground="#63758B" FontSize="11" Margin="6,14,0,0"/>
+          <TextBlock Text="Windows 10 / 11  •  v3.2 RC2" Foreground="#63758B" FontSize="11" Margin="6,14,0,0"/>
         </StackPanel>
       </DockPanel>
     </Border>
