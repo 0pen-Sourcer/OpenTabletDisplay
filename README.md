@@ -90,7 +90,7 @@ The stream packets themselves travel through USB, but stable **v3.1.1** still us
 
 ## Install
 
-> **Development preview:** The 3.3 native Windows overhaul is still in draft PR #10, not the public stable release. The current public 3.1.1 has known installer defects. Treat all unsigned previews as test-only and keep antivirus protection enabled.
+> **Development preview:** The 3.3 native Windows overhaul has been merged into source on `main`, but **has not been published as a stable release**. The latest public release remains v3.1.1, which has known installer defects. CI-tested source is not proof of secure hardware operation. Do not bypass antivirus warnings to use unsigned preview binaries; trusted code signing and physical device QA are required before a public 3.3 release.
 
 1. Download the complete packaged Windows ZIP, not GitHub's automatic Source code ZIP, and extract it.
 2. Open **OpenTabletDisplay.exe**. The desktop UI is a compiled, self-contained .NET 10 WPF application—not a PowerShell-hosted window.
