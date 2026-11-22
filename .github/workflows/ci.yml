@@ -119,13 +119,7 @@ jobs:
           foreach ($required in @('OpenTabletDisplay.exe','assets\OpenTabletDisplay.ico','assets\OpenTabletDisplay.png','installer\desktop.ps1','installer\install.ps1','payload\FSDL.exe','payload\probes\fsdl-probe-android-arm64')) {
             if (-not (Test-Path -LiteralPath (Join-Path $bundle.FullName $required))) { throw ('Release package missing: ' + $required) }
           }
-          Add-Type -TypeDefinition @'
-using System; using System.Runtime.InteropServices;
-public class IconCheck {
- [DllImport("shell32.dll", CharSet=CharSet.Unicode)]
- public static extern uint ExtractIconEx(string file, int index, IntPtr[] large, IntPtr[] small, uint count);
-}
-'@
+          Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class IconCheck { [DllImport("shell32.dll", CharSet=CharSet.Unicode)] public static extern uint ExtractIconEx(string file, int index, IntPtr[] large, IntPtr[] small, uint count); }'
           $appExe = Join-Path $bundle.FullName 'OpenTabletDisplay.exe'
           $iconCount = [IconCheck]::ExtractIconEx($appExe, -1, $null, $null, 0)
           if ($iconCount -lt 1) { throw 'Windows Explorer icon missing from packaged executable.' }
