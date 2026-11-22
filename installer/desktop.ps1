@@ -134,7 +134,7 @@ $xaml = @'
         <StackPanel DockPanel.Dock="Top">
           <StackPanel Orientation="Horizontal" Margin="7,2,0,40" VerticalAlignment="Center">
             <Border Background="#397CF4" Width="38" Height="38" CornerRadius="11">
-              <Image x:Name="SidebarLogo" Width="38" Height="38" Stretch="Uniform"/>
+              <Image x:Name="SidebarLogo" Width="38" Height="38" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
             </Border>
             <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
               <TextBlock Text="OpenTablet" Foreground="#F5F8FF" FontSize="17" FontWeight="Bold"/>
@@ -196,11 +196,7 @@ $xaml = @'
                   </StackPanel>
                 </StackPanel>
                 <Border Grid.Column="1" Width="134" Height="104" CornerRadius="15" Background="#244674" VerticalAlignment="Center">
-                  <Grid Margin="18">
-                    <Border CornerRadius="7" BorderThickness="3" BorderBrush="#98C2FF" Margin="0,0,24,20"/>
-                    <Border CornerRadius="5" BorderThickness="3" BorderBrush="#FFFFFF" Background="#3566AB" Width="47" Height="68" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
-                    <Border Width="7" Height="7" CornerRadius="4" Background="#9FD9FF" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,7"/>
-                  </Grid>
+                  <Image x:Name="HeroArtwork" Width="100" Height="100" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
                 </Border>
               </Grid>
             </Border>
@@ -403,25 +399,41 @@ try {
     exit 1
 }
 
-$iconCandidates = @(
-    (Join-Path (Split-Path -Parent $PSScriptRoot) 'assets\OpenTabletDisplay.ico'),
-    (Join-Path $PSScriptRoot 'assets\OpenTabletDisplay.ico'),
-    (Join-Path $script:InstallRoot 'assets\OpenTabletDisplay.ico')
+$assetFolders = @(
+    (Join-Path (Split-Path -Parent $PSScriptRoot) 'assets'),
+    (Join-Path $PSScriptRoot 'assets'),
+    (Join-Path $script:InstallRoot 'assets')
 )
-foreach ($candidate in $iconCandidates) {
-    if (Test-Path -LiteralPath $candidate) {
+foreach ($folder in $assetFolders) {
+    $ico = Join-Path $folder 'OpenTabletDisplay.ico'
+    if (Test-Path -LiteralPath $ico) {
         try {
-            $iconFrame = [System.Windows.Media.Imaging.BitmapFrame]::Create(
-                [System.Uri]::new([System.IO.Path]::GetFullPath($candidate)))
-            $window.Icon = $iconFrame
-            $window.FindName('SidebarLogo').Source = $iconFrame
-            break
+            $window.Icon = [System.Windows.Media.Imaging.BitmapFrame]::Create(
+                [System.Uri]::new([System.IO.Path]::GetFullPath($ico)))
         } catch {}
+        break
     }
+}
+# WPF may choose a 16px frame from a multi-resolution ICO, causing blurry
+# 38px branding. Use the full-resolution PNG for all visible in-app artwork.
+foreach ($folder in $assetFolders) {
+    $png = Join-Path $folder 'OpenTabletDisplay.png'
+    if (-not (Test-Path -LiteralPath $png)) { continue }
+    try {
+        $image = [System.Windows.Media.Imaging.BitmapImage]::new()
+        $image.BeginInit()
+        $image.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+        $image.UriSource = [System.Uri]::new([System.IO.Path]::GetFullPath($png))
+        $image.EndInit()
+        $image.Freeze()
+        $window.FindName('SidebarLogo').Source = $image
+        $window.FindName('HeroArtwork').Source = $image
+        break
+    } catch {}
 }
 
 $names = @(
-    'SidebarLogo',
+    'SidebarLogo','HeroArtwork',
     'OverviewPage','ConnectPage','DiagnosticsPage','SettingsPage','NavOverview','NavConnect','NavDiagnostics','NavSettings',
     'RefreshButton','PageEyebrow','PageHeading','PageSubheading','HeroTitle','HeroDescription','HeroSetup','HeroDetails',
     'AppStatus','AppDetail','SunStatus','DriverStatus','DeviceStatus','SidebarDot','SidebarState','OverviewGuide',
@@ -583,7 +595,16 @@ function Start-Setup {
 function Poll-Install {
     if (-not $script:Installing) { return }
     $line = Get-LastLogLine $script:InstallLog
-    if ($line) { $script:UI.InstallActivity.Text = $line }
+    if ($line) {
+        $script:UI.InstallActivity.Text = $line
+        try {
+            $logFile = Get-Item -LiteralPath $script:InstallLog -ErrorAction Stop
+            if ((Get-Date) - $logFile.LastWriteTime -gt [TimeSpan]::FromMinutes(2)) {
+                $script:UI.InstallActivity.Text = 'No recent installer activity. Last step: ' + $line + '  Check Diagnostics.'
+                Set-Feedback 'Installation is still running but has not reported progress recently.'
+            }
+        } catch {}
+    }
     if ($null -ne $script:InstallProcess -and $script:InstallProcess.HasExited) {
         $script:Installing = $false
         $script:UI.InstallProgress.Visibility = 'Collapsed'
