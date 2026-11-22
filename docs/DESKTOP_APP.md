@@ -1,44 +1,56 @@
-# OpenTabletDisplay desktop control center — 3.2.0 release candidate
+# Native OpenTabletDisplay 3.3 release candidate
 
-## One-click Windows setup
+OpenTabletDisplay's everyday desktop interface is now a **compiled, self-contained .NET 10 WPF executable**. It is not a PowerShell-hosted window. Users need no separate .NET installation. The app starts as a normal Windows user; only installer and uninstaller operations request Windows administrator approval.
 
-Download the packaged release ZIP from GitHub Releases (not GitHub's auto-generated Source Code ZIP). Extract it fully and double-click **OpenTabletDisplay.exe**.
+## First launch
 
-The Windows control center provides:
-- Overview: status of OpenTabletDisplay, Sunshine, the virtual display driver, and Android enrollment.
-- Set up & connect: administrator-approved installation, progress, device USB authorization check, explicit authorized-device enrollment, host-address copy, Moonlight and Sunshine setup links.
-- Diagnostics: local installer/agent logs, live Doctor, optional redacted text report.
-- Preferences & help: start/stop the USB bridge, forget the enrolled device, restore app-owned settings through safe uninstall, and troubleshooting links.
+1. Download the full, checksum-verified Windows release archive, not GitHub's auto-generated source ZIP. Extract it completely.
+2. Open **OpenTabletDisplay.exe**. The overview identifies Sunshine and the virtual-display driver using native Windows APIs.
+3. Choose **Set up & connect → Install / repair**. Accept Windows UAC if you authorize installation of pinned verified dependencies. Antivirus verdicts stay in force. Do not disable endpoint protection to make setup succeed.
+4. While installing, the UI displays the actual installation log and alerts when no progress is logged. Driver and USB controls remain unavailable until the one-time setup commits.
+5. Connect your Android device using a real USB data cable, unlock it, enable USB debugging, and approve the Windows computer's RSA prompt.
+6. Select **My devices → Scan connected Android devices**. Choose an authorized device to enroll; no automatic enrollment of unknown or additional devices.
+7. Install the official Moonlight app on Android, pair with Sunshine through its local web UI, then open Desktop. A one-time gnirehtet VPN connection prompt may appear; ordinary Android USB tethering must remain OFF.
 
-On the first run, select **Install / repair**. This downloads pinned and SHA-256-verified Sunshine, the Virtual Display Driver, NefCon, ADB, and gnirehtet. The GUI itself uses Windows' built-in WPF runtime and does not need an extra UI-framework download.
+After setup, normal use should be cable → Android authorization (if necessary) → Moonlight Desktop. It is not necessary to keep OpenTabletDisplay's control window open.
 
-After setup, connect an Android device with a data-capable USB cable, unlock it, enable Developer options and USB debugging, and approve the computer's RSA trust prompt. Keep ordinary Android USB tethering **OFF**. Approve the local gnirehtet VPN/connection permission when prompted.
+## Native Windows controls
 
-Click **Check connected device**. If several authorized devices exist, select which one to enroll explicitly. Install the official Moonlight Game Streaming Android app, pair it using the Moonlight host address shown by the control center and the PIN from Sunshine's web UI, then select **Desktop** in Moonlight.
+- **Overview:** Windows installation completeness, Sunshine service state, exact ROOT\MttVDD driver hardware ID, Android enrollment, actual host address.
+- **Set up & connect:** elevated setup, non-fake progress, Android permissions and Moonlight onboarding.
+- **My devices:** asynchronous, bounded USB device scans, explicit serial validation and enrollment; one USB action at a time.
+- **Diagnostics:** bounded local log reads and connection doctor, never automatically uploaded, opt-in sanitized export.
+- **Preferences & help:** explicit security limitations, trusted support links and guarded uninstall.
 
-Everyday use after the first authorized setup should be: plug USB, open Moonlight, launch Desktop. The background USB agent reconnects on device changes; the control center does not have to stay open.
+The app is single-instance and does not start the USB transport merely because its executable is double-clicked. The separate FSDL runtime is not intended for direct use by consumers. A bare FSDL.exe invocation displays help only.
 
-**Plug-and-play does not mean bypassing the operating system's protections.** Driver UAC, Android USB debugging/RSA authorization, local VPN permission and Moonlight pairing require explicit user action at first setup.
+## Security commitments
 
-## Privacy and safety
+- No AVG/Defender disabling, antivirus exclusions, quarantine restores, security bypass, silent Android RSA trust, or silent VPN permissions.
+- Compiled WPF GUI is not hosted by powershell.exe. **Windows setup still uses elevated PowerShell scripts** to install pinned Sunshine and virtual-display dependencies, with process-scoped execution policy only; no global PowerShell policy is modified. Removing PowerShell from this privileged setup path entirely will require a separately audited native installer.
+- Exact pinned download SHA-256 checks and valid upstream signatures where supplied; local package manifest verifies extraction integrity.
+- Main app runs unelevated; UAC is user-triggered. Commands execute through fixed paths and .NET argument lists, not arbitrary shell strings.
+- No remote telemetry, personal data uploads or cloud login. Logs can contain local device information; exported reports have basic redaction but must still be reviewed.
+- **Unsigned apps may legitimately be quarantined for review.** Passing CI or hash checks does NOT override a security product's verdict and does NOT establish trusted publisher identity.
+- Code signing and independent security verification are required before publicly promoting a stable release.
 
-- No cloud account, telemetry, ad tracking, or third-party desktop browser engine is added by the GUI.
-- Windows setup elevates only after explicit user approval; status and diagnostic checks remain unprivileged.
-- Installation tracks app-owned changes; existing compatible Sunshine settings and VDD installations are reused. Default uninstall preserves upstream Sunshine and drivers, and restores only config entries that still equal app-applied values.
-- Device enrollment does not silently switch to another USB-debugging phone. Forgetting an enrolled device requires confirmation.
-- Original Sunshine credentials are stored privately in the local installation directory. Never share sunshine-webui.txt.
-- Diagnostic export redacts common user-profile paths, device serial labels and IP addresses, but you must still review exported files before sharing.
+## Current limitations
 
-## Troubleshooting
+- This app targets Windows 10/11 x64 and Android Moonlight/ADB. It does not support iOS, Linux/macOS host, or every Android ROM.
+- First setup requires network access to retrieve pinned verified Sunshine, VDD, NefCon, Android Platform Tools and gnirehtet.
+- Real Moonlight video, touch, protected-content behavior, GPU encoders, multi-monitor layout, USB reconnect, hibernation and driver rollback **must be validated on physical hardware**, not inferred from CI.
+- Standard Windows accounts requiring different administrator credentials can have per-user setup ownership issues. That multi-user elevation path is NOT certified until tested.
+- The application's own publisher certificate is not yet configured. Do not tell users to weaken Windows security.
 
-Open Diagnostics, run the live check, and inspect the latest installation and agent logs. If VDD is found but unhealthy, inspect Device Manager and the driver error rather than blindly uninstalling unrelated drivers. If Android is invisible, inspect USB data cable, unlocked screen, debugging authorization, and Windows ADB interface. If the Moonlight PC appears offline, verify Sunshine and the USB agent, and re-check the host address.
+## Support workflow
 
-If an installer run fails, don't run several overlapping installers. Fix the reported blocker, then use Install / repair again. For device switching, use the explicit selection or forget-device function.
+Open **Diagnostics**, inspect the latest installation and USB preparation error, and check AVG/Defender protection history for the exact affected executable. Determine whether the event was a scan, a quarantine, a suspicious-behavior detection, or a final malware verdict before attempting any retry. A blocked executable should not be force-run.
 
-## Supported hardware and limitations
+## Stable release gate
 
-Windows 10/11 x64, Sunshine-compatible GPU/encoder, USB data cable, Android ADB and official Moonlight, and a host with an active physical IPv4/default route. Normal Android tethering must be OFF. iOS, macOS/Linux hosts, Windows on ARM, and Android ROMs that prohibit ADB/VPN permission are not supported in this release.
+1. Windows CI builds a self-contained WPF EXE, runs its offline window/serial/redaction smoke test, checks exact package files and embedded icon, and verifies SHA-256.
+2. Real Windows 10/11 install and uninstall (including existing Sunshine) without settings loss, standard-user account tests, accessibility and scaling checks.
+3. Real Android USB authorization, gnirehtet/VPN permission, Moonlight stream, touch, resolution, sleep/reconnect and multiple-device tests.
+4. Trusted code signing for OpenTabletDisplay.exe AND FSDL.exe, plus documented source/build provenance and security review.
 
-## Release gate
-
-CI now checks Go tests, Go vet/race, offline self-tests, Windows XAML loading, desktop-controller smoke execution, exact VDD hardware-ID matching, fresh installer-log creation, and ZIP contents. It **cannot** establish that real Windows driver installation, Sunshine video capture, Android USB transport, sleep/wake, and uninstall are safe on actual hardware. A stable release should follow physical test coverage and official code signing. This release candidate is not claimed to have passed those final gates.
+Until these requirements pass, this remains an **unsigned development release candidate**, not production-safe proof for general consumers.
