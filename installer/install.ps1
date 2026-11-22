@@ -406,8 +406,8 @@ try {
         $state.vdd_instance_ids = @($vddAddedInstanceIds)
         $state.vdd_driver_names = @($vddAddedDriverNames)
     }
-    Save-FSDLJson $state $script:InstallStatePath
-
+    # Only commit install-state after the background agent is registered.
+    # A failed setup must never be mistaken for an installed application.
     # Hidden reconnect agent. Limited privileges are sufficient after installation.
     $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -420,6 +420,7 @@ try {
     Register-ScheduledTask -TaskName $script:TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Keeps OpenTabletDisplay wired Android display transport available in the background.' -Force | Out-Null
     Start-ScheduledTask -TaskName $script:TaskName
     $createdTask = $true
+    Save-FSDLJson $state $script:InstallStatePath
 
     # Register a normal uninstall entry so the extracted release folder can be deleted.
     $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FSDL'
