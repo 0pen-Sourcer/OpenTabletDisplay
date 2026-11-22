@@ -1,7 +1,7 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
-$script:FSDLVersion = '3.1.1'
+$script:FSDLVersion = '3.3.0-rc.1'
 $script:TaskName = 'FSDL USB Display Agent'
 $script:InstallRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'FSDL'
 $script:InstallStatePath = Join-Path $script:InstallRoot 'install-state.json'
@@ -24,8 +24,6 @@ function Test-FSDLAdmin {
 function Invoke-FSDLElevatedSelf([string]$ScriptPath, [string[]]$ForwardArgs) {
     $parts = New-Object System.Collections.Generic.List[string]
     $parts.Add('-NoProfile')
-    $parts.Add('-ExecutionPolicy')
-    $parts.Add('Bypass')
     $parts.Add('-File')
     $parts.Add(('"' + $ScriptPath + '"'))
     foreach ($arg in $ForwardArgs) {
@@ -35,6 +33,13 @@ function Invoke-FSDLElevatedSelf([string]$ScriptPath, [string[]]$ForwardArgs) {
     }
     $p = Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList ($parts -join ' ') -Wait -PassThru
     return $p.ExitCode
+}
+
+function Initialize-FSDLInstallLog([string]$LogPath) {
+    $dir = Split-Path -Parent $LogPath
+    if (-not $dir) { throw 'Install log path must have a parent directory.' }
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    Set-Content -LiteralPath $LogPath -Value ('OpenTabletDisplay ' + $script:FSDLVersion + ' install ' + (Get-Date -Format o)) -Encoding UTF8
 }
 
 function Write-FSDLLog([string]$Message, [string]$LogPath) {
@@ -172,9 +177,42 @@ function Protect-FSDLUserFile([string]$Path) {
     } catch {}
 }
 
+function Test-FSDLVddDevice($Device) {
+    if (-not $Device -or -not $Device.InstanceId) { return $false }
+    # NefCon may create an instance under ROOT\DISPLAY, although the installed
+    # driver's hardware ID remains ROOT\MttVDD. Match hardware identity,
+    # never a friendly name or an arbitrary virtual-display-looking device.
+    if ([string]$Device.InstanceId -match '(?i)^ROOT\\MTTVDD(\\|$)') { return $true }
+    $ids = @()
+    if ($Device.PSObject.Properties.Match('HardwareID').Count -gt 0) {
+        $ids += @($Device.HardwareID)
+    }
+    try {
+        $p = Get-PnpDeviceProperty -InstanceId $Device.InstanceId -KeyName 'DEVPKEY_Device_HardwareIds' -ErrorAction Stop
+        if ($p -and $p.Data) { $ids += @($p.Data) }
+    } catch {}
+    foreach ($id in $ids) {
+        if ([string]$id -ieq 'ROOT\MttVDD') { return $true }
+    }
+    return $false
+}
+
 function Get-FSDLVddDevices {
-    $devices = @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -match '^ROOT\\MTTVDD' })
-    return $devices
+    # Only root-enumerated display adapters need an expensive HardwareIds query.
+    $candidates = @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object {
+        [string]$_.InstanceId -match '(?i)^ROOT\\(DISPLAY|MTTVDD)(\\|$)'
+    })
+    return @($candidates | Where-Object { Test-FSDLVddDevice $_ })
+}
+
+function Wait-FSDLVdd([int]$Seconds = 30) {
+    $deadline = (Get-Date).AddSeconds($Seconds)
+    do {
+        $devices = @(Get-FSDLVddDevices)
+        if ($devices.Count -gt 0) { return $devices }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    return @()
 }
 
 function Get-FSDLDriverPublishedNames {
@@ -188,17 +226,22 @@ function Get-FSDLDriverPublishedNames {
 }
 
 function Get-FSDLSunshineLogCandidates {
+    # Never recursively crawl the user's entire TEMP or C:\Windows\Temp.
+    # These trees can contain thousands of unrelated application logs and
+    # create an apparently endless setup loop when retried.
     $paths = New-Object System.Collections.Generic.List[string]
     $roots = @(
-        (Join-Path $env:ProgramFiles 'Sunshine'),
-        (Join-Path $env:ProgramData 'Sunshine'),
-        $env:TEMP,
-        (Join-Path $env:SystemRoot 'Temp')
+        [pscustomobject]@{ Path = (Join-Path $env:ProgramFiles 'Sunshine'); Recurse = $true },
+        [pscustomobject]@{ Path = (Join-Path $env:ProgramData 'Sunshine'); Recurse = $true },
+        [pscustomobject]@{ Path = $env:TEMP; Recurse = $false },
+        [pscustomobject]@{ Path = (Join-Path $env:SystemRoot 'Temp'); Recurse = $false }
     )
-    foreach ($root in $roots) {
-        if (-not $root -or -not (Test-Path $root)) { continue }
-        Get-ChildItem -LiteralPath $root -Filter '*.log' -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-            if ($_.Name -match '(?i)sunshine') { $paths.Add($_.FullName) }
+    foreach ($scope in $roots) {
+        if (-not $scope.Path -or -not (Test-Path -LiteralPath $scope.Path)) { continue }
+        $args = @{ LiteralPath = $scope.Path; Filter = '*sunshine*.log'; File = $true; ErrorAction = 'SilentlyContinue' }
+        if ($scope.Recurse) { $args.Recurse = $true }
+        foreach ($log in @(Get-ChildItem @args | Sort-Object LastWriteTime -Descending | Select-Object -First 12)) {
+            if ($log -and $log.FullName) { $paths.Add($log.FullName) }
         }
     }
     return @($paths | Sort-Object -Unique)
@@ -212,7 +255,7 @@ function Find-FSDLSunshineVirtualDisplayId([string]$ExplicitId) {
 
     $records = @{}
     foreach ($log in (Get-FSDLSunshineLogCandidates)) {
-        try { $text = Get-Content -LiteralPath $log -Raw -ErrorAction Stop } catch { continue }
+        try { $text = (Get-Content -LiteralPath $log -Tail 4000 -ErrorAction Stop | Out-String) } catch { continue }
         $matches = [regex]::Matches($text, '"device_id"\s*:\s*"(?<id>\{[0-9a-fA-F-]{36}\})"(?s:.{0,700}?)"friendly_name"\s*:\s*"(?<name>[^"]*)"')
         foreach ($m in $matches) {
             $id = $m.Groups['id'].Value

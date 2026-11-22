@@ -17,13 +17,38 @@ if (-not [Environment]::Is64BitOperatingSystem) {
 
 $packageRoot = Split-Path -Parent $PSScriptRoot
 $payloadExe = Join-Path $packageRoot 'payload\FSDL.exe'
+$payloadAgent = Join-Path $packageRoot 'payload\FSDL-Agent.exe'
 $payloadProbes = Join-Path $packageRoot 'payload\probes'
 if (-not (Test-Path $payloadExe)) { throw ('Release payload is incomplete: ' + $payloadExe) }
+if (-not (Test-Path $payloadAgent)) { throw ('Release agent payload is incomplete: ' + $payloadAgent) }
 if (-not (Test-Path $payloadProbes)) { throw ('Release payload is incomplete: ' + $payloadProbes) }
+$desktopExe = Join-Path $packageRoot 'OpenTabletDisplay.exe'
+if (-not (Test-Path -LiteralPath $desktopExe)) {
+    throw 'Native Windows desktop executable missing. Extract the complete release ZIP, not GitHub Source code ZIP.'
+}
+# Checksums detect damaged archives, not trusted publisher identities.
+$manifest = Join-Path $packageRoot 'SHA256SUMS.txt'
+if (-not (Test-Path -LiteralPath $manifest)) { throw 'Package integrity manifest missing.' }
+$expected = @((Get-Content -LiteralPath $manifest) | Where-Object { $_ -match '^[0-9a-f]{64}  payload/FSDL\.exe$' })
+if ($expected.Count -ne 1) { throw 'Package manifest has no unambiguous helper hash.' }
+if ((Get-FileHash -LiteralPath $payloadExe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected[0].Substring(0,64)) {
+    throw 'USB helper failed package integrity verification. Redownload the official archive.'
+}
+$agentHash = @((Get-Content -LiteralPath $manifest) | Where-Object { $_ -match '^[0-9a-f]{64}  payload/FSDL-Agent\.exe$' })
+if ($agentHash.Count -ne 1 -or
+    (Get-FileHash -LiteralPath $payloadAgent -Algorithm SHA256).Hash.ToLowerInvariant() -ne $agentHash[0].Substring(0,64)) {
+    throw 'Background agent failed package integrity verification.'
+}
 
 New-Item -ItemType Directory -Force -Path $script:InstallRoot | Out-Null
+# Exclusive file handle ensures no second setup can modify drivers in parallel.
+$installLockPath = Join-Path $script:InstallRoot 'install.lock'
+try {
+    $installLock = [System.IO.File]::Open($installLockPath, [IO.FileMode]::OpenOrCreate,
+        [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+} catch { throw 'Another OpenTabletDisplay install or repair is running.' }
 $logPath = Join-Path $script:InstallRoot 'logs\install.log'
-Set-Content -LiteralPath $logPath -Value ('OpenTabletDisplay ' + $script:FSDLVersion + ' install ' + (Get-Date -Format o)) -Encoding UTF8
+Initialize-FSDLInstallLog $logPath
 
 $oldState = $null
 if (Test-Path $script:InstallStatePath) {
@@ -65,14 +90,14 @@ try {
     Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path (Join-Path $staging 'probes') | Out-Null
     Copy-Item -LiteralPath $payloadExe -Destination (Join-Path $staging 'FSDL.exe') -Force
+    Copy-Item -LiteralPath $payloadAgent -Destination (Join-Path $staging 'FSDL-Agent.exe') -Force
     Copy-Item -Path (Join-Path $payloadProbes '*') -Destination (Join-Path $staging 'probes') -Force
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'agent.ps1') -Destination (Join-Path $staging 'agent.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'uninstall.ps1') -Destination (Join-Path $staging 'uninstall.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'status.ps1') -Destination (Join-Path $staging 'status.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'reset-device.ps1') -Destination (Join-Path $staging 'reset-device.ps1') -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'common.ps1') -Destination (Join-Path $staging 'common.ps1') -Force
 
-    foreach ($name in @('FSDL.exe','agent.ps1','uninstall.ps1','status.ps1','reset-device.ps1','common.ps1')) {
+    foreach ($name in @('FSDL.exe','FSDL-Agent.exe','uninstall.ps1','status.ps1','reset-device.ps1','common.ps1')) {
         Copy-Item -LiteralPath (Join-Path $staging $name) -Destination (Join-Path $script:InstallRoot $name) -Force
     }
     $probeTarget = Join-Path $script:InstallRoot 'probes'
@@ -169,24 +194,43 @@ try {
             }
             Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
-        Start-Sleep -Seconds 6
-        $afterVdd = @(Get-FSDLVddDevices)
-        if ($afterVdd.Count -eq 0) { throw 'VDD installation returned success but ROOT\MttVDD did not enumerate.' }
+        # The PnP instance may be ROOT\DISPLAY even when the hardware ID is ROOT\MttVDD.
+        # Let PnP settle; never assume a driver is usable just because NefCon exited 0.
+        & pnputil.exe /scan-devices | Out-Null
+        $afterVdd = @(Wait-FSDLVdd 30)
+        # Track only devices and driver packages created by this install
+        # before checking health, so a failed install can roll them back.
         $vddAddedInstanceIds = @($afterVdd | Select-Object -ExpandProperty InstanceId)
         $afterDrivers = @(Get-FSDLDriverPublishedNames)
         $vddAddedDriverNames = @($afterDrivers | Where-Object { $beforeDrivers -notcontains $_ })
         $installedVddThisRun = $true
         $vddOwned = $true
+        if ($afterVdd.Count -eq 0) {
+            Write-FSDLLog 'NefCon returned success but Windows still exposes no ROOT\MttVDD hardware-ID match. Check Device Manager > Display adapters for a disabled or failed driver.' $logPath
+            throw 'Virtual Display Driver was not detected after installation; see Device Manager and installer diagnostics.'
+        }
+        $badVdd = @($afterVdd | Where-Object { $_.Status -ne 'OK' })
+        if ($badVdd.Count -gt 0) {
+            $desc = ($badVdd | ForEach-Object { $_.InstanceId + ' [' + $_.Status + ']' }) -join '; '
+            Write-FSDLLog ('VDD present but not healthy: ' + $desc) $logPath
+            throw ('Virtual Display Driver was found but Windows reports it is not healthy: ' + $desc)
+        }
     } else {
         foreach ($dev in $beforeVdd) {
             if ($dev.Status -ne 'OK') {
                 Enable-PnpDevice -InstanceId $dev.InstanceId -Confirm:$false -ErrorAction SilentlyContinue
             }
         }
-        Write-FSDLLog 'Reusing existing Virtual Display Driver installation.' $logPath
+        $verifiedVdd = @(Get-FSDLVddDevices | Where-Object { $_.Status -eq 'OK' })
+        if ($verifiedVdd.Count -eq 0) {
+            throw 'A Virtual Display Driver is present but not healthy. Check Device Manager before continuing.'
+        }
+        Write-FSDLLog 'Reusing an existing healthy Virtual Display Driver installation.' $logPath
     }
 
+    Write-FSDLLog 'Restarting Sunshine to enumerate available displays.' $logPath
     Restart-FSDLSunshine
+    Write-FSDLLog 'Sunshine is healthy; resolving the virtual display device ID.' $logPath
 
     # Sunshine emits stable device IDs for all displays. Select the VDD by that ID,
     # never by DISPLAY1/DISPLAY2 numbering or DXGI index. For an in-place update
@@ -200,10 +244,13 @@ try {
 
     $vddDeviceId = $null
     $lastDiscoveryError = $null
-    for ($i = 0; $i -lt 10 -and -not $vddDeviceId; $i++) {
-        try { $vddDeviceId = Find-FSDLSunshineVirtualDisplayId $OutputDeviceId } catch {
+    for ($i = 0; $i -lt 4 -and -not $vddDeviceId; $i++) {
+        try {
+            $vddDeviceId = Find-FSDLSunshineVirtualDisplayId $OutputDeviceId
+        } catch {
             $lastDiscoveryError = $_
-            Start-Sleep -Seconds 1
+            Write-FSDLLog ('Virtual display discovery attempt ' + ($i + 1) + '/4: ' + $_.Exception.Message) $logPath
+            if ($i -lt 3) { Start-Sleep -Seconds 2 }
         }
     }
     if (-not $vddDeviceId -and $legacyScoreBefore -ge 6 -and $existingOutput.Present -and ([string]$existingOutput.Value -match '^\{[0-9a-fA-F-]{36}\}$')) {
@@ -272,9 +319,96 @@ try {
     Restart-FSDLSunshine
 
     # Download and verify USB runtime dependencies now, not on the first daily plug-in.
+    # Capture the helper's stdout/stderr instead of hiding its actual failure
+    # behind "dependency preparation failed". Antivirus quarantine, network
+    # errors and integrity failures must remain distinguishable.
     $installedExe = Join-Path $script:InstallRoot 'FSDL.exe'
-    & $installedExe prepare
-    if ($LASTEXITCODE -ne 0) { throw 'FSDL dependency preparation failed.' }
+    $depOut = Join-Path $script:InstallRoot 'logs\prepare-stdout.txt'
+    $depErr = Join-Path $script:InstallRoot 'logs\prepare-stderr.txt'
+    Remove-Item -LiteralPath $depOut,$depErr -Force -ErrorAction SilentlyContinue
+    Write-FSDLLog 'Preparing verified Android Platform-Tools and gnirehtet dependencies.' $logPath
+    try {
+        $prepareProc = Start-Process -FilePath $installedExe -ArgumentList 'prepare' -PassThru -WindowStyle Hidden -RedirectStandardOutput $depOut -RedirectStandardError $depErr -ErrorAction Stop
+    } catch {
+        throw ('Unable to launch FSDL dependency helper (check antivirus protection events, if any): ' + $_.Exception.Message)
+    }
+    $prepareDone = $prepareProc.WaitForExit(540000)
+    if (-not $prepareDone) {
+        try { $prepareProc.Kill() } catch {}
+        throw 'USB dependency helper exceeded the nine-minute setup deadline. Check prepare-stdout.txt and prepare-stderr.txt in local logs.'
+    }
+    $prepareProc.Refresh()
+    foreach ($entry in @(@('stdout',$depOut),@('stderr',$depErr))) {
+        $label = $entry[0]
+        $p = $entry[1]
+        if (-not (Test-Path -LiteralPath $p)) { continue }
+        foreach ($line in @(Get-Content -LiteralPath $p -Tail 80 -ErrorAction SilentlyContinue)) {
+            if ($line) { Write-FSDLLog ('USB ' + $label + ': ' + $line) $logPath }
+        }
+    }
+    if ($prepareProc.ExitCode -ne 0) {
+        throw ('USB dependency helper failed with exit code ' + $prepareProc.ExitCode + '. See logs\prepare-stderr.txt for the specific error.')
+    }
+
+    # Preserve a complete local repair package so Start Menu setup works even
+    # after users delete the Downloads ZIP. Never delete arbitrary user files.
+    $persistentPackage = Join-Path $script:InstallRoot 'package'
+    $sourcePath = [IO.Path]::GetFullPath($packageRoot).TrimEnd('\')
+    $targetPath = [IO.Path]::GetFullPath($persistentPackage).TrimEnd('\')
+    if ($sourcePath -ine $targetPath) {
+        $pendingPackage = Join-Path $script:InstallRoot 'package.pending'
+        $previousPackage = Join-Path $script:InstallRoot 'package.previous'
+        Remove-Item -LiteralPath $pendingPackage -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path (Join-Path $pendingPackage 'installer'), (Join-Path $pendingPackage 'payload\probes') | Out-Null
+        Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File |
+            Where-Object { $_.Name -ne 'desktop.ps1' } | Copy-Item -Destination (Join-Path $pendingPackage 'installer') -Force
+        Copy-Item -LiteralPath $payloadExe -Destination (Join-Path $pendingPackage 'payload\FSDL.exe') -Force
+        Copy-Item -LiteralPath $payloadAgent -Destination (Join-Path $pendingPackage 'payload\FSDL-Agent.exe') -Force
+        Copy-Item -Path (Join-Path $payloadProbes '*') -Destination (Join-Path $pendingPackage 'payload\probes') -Force
+        Copy-Item -LiteralPath $desktopExe -Destination (Join-Path $pendingPackage 'OpenTabletDisplay.exe') -Force
+        Copy-Item -LiteralPath $manifest -Destination (Join-Path $pendingPackage 'SHA256SUMS.txt') -Force
+        foreach ($name in @('install.cmd','status.cmd','reset-device.cmd','uninstall.cmd')) {
+            $source = Join-Path $packageRoot $name
+            if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $pendingPackage $name) -Force }
+        }
+        Remove-Item -LiteralPath $previousPackage -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath $persistentPackage) {
+            Move-Item -LiteralPath $persistentPackage -Destination $previousPackage
+        }
+        try {
+            Move-Item -LiteralPath $pendingPackage -Destination $persistentPackage
+        } catch {
+            if (Test-Path -LiteralPath $previousPackage) {
+                Move-Item -LiteralPath $previousPackage -Destination $persistentPackage -ErrorAction SilentlyContinue
+            }
+            throw
+        }
+        Remove-Item -LiteralPath $previousPackage -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $installedDesktop = Join-Path $script:InstallRoot 'OpenTabletDisplay.exe'
+    $sameDesktop = (Test-Path -LiteralPath $installedDesktop) -and
+        ((Get-FileHash -LiteralPath $installedDesktop -Algorithm SHA256).Hash -eq
+         (Get-FileHash -LiteralPath $desktopExe -Algorithm SHA256).Hash)
+    if (-not $sameDesktop) {
+        try {
+            Copy-Item -LiteralPath $desktopExe -Destination $installedDesktop -Force -ErrorAction Stop
+        } catch {
+            throw ('Native desktop app could not be replaced. Close any running installed OpenTabletDisplay window and retry: ' + $_.Exception.Message)
+        }
+    } else {
+        Write-FSDLLog 'Native desktop executable already matches the verified package; retaining in-use file.' $logPath
+    }
+    $brandedAssets = Join-Path $packageRoot 'assets'
+    if (-not (Test-Path -LiteralPath (Join-Path $brandedAssets 'OpenTabletDisplay.ico'))) {
+        throw 'Release is missing the official Windows icon assets.'
+    }
+    $installedAssets = Join-Path $script:InstallRoot 'assets'
+    New-Item -ItemType Directory -Force -Path $installedAssets | Out-Null
+    Copy-Item -Path (Join-Path $brandedAssets '*') -Destination $installedAssets -Force
+    $repairAssets = Join-Path $persistentPackage 'assets'
+    New-Item -ItemType Directory -Force -Path $repairAssets | Out-Null
+    Copy-Item -Path (Join-Path $brandedAssets '*') -Destination $repairAssets -Force
+    Write-FSDLLog 'Saved the standalone desktop app and an offline repair package.' $logPath
 
     $state = [ordered]@{
         version = $script:FSDLVersion
@@ -293,20 +427,22 @@ try {
         $state.vdd_instance_ids = @($vddAddedInstanceIds)
         $state.vdd_driver_names = @($vddAddedDriverNames)
     }
-    Save-FSDLJson $state $script:InstallStatePath
-
+    # Only commit install-state after the background agent is registered.
+    # A failed setup must never be mistaken for an installed application.
     # Hidden reconnect agent. Limited privileges are sufficient after installation.
     $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-    $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $agent = Join-Path $script:InstallRoot 'agent.ps1'
-    $actionArgs = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $agent + '"'
-    $action = New-ScheduledTaskAction -Execute $psExe -Argument $actionArgs
+    $agent = Join-Path $script:InstallRoot 'FSDL-Agent.exe'
+    # A native, no-console user task, never a hidden powershell.exe startup job.
+    $action = New-ScheduledTaskAction -Execute $agent -Argument 'daemon' -WorkingDirectory $script:InstallRoot
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
     $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero)
     Register-ScheduledTask -TaskName $script:TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Keeps OpenTabletDisplay wired Android display transport available in the background.' -Force | Out-Null
     Start-ScheduledTask -TaskName $script:TaskName
     $createdTask = $true
+    Save-FSDLJson $state $script:InstallStatePath
+    # Legacy 3.2 script hosts are now obsolete; remove only app-owned files.
+    Remove-Item -LiteralPath (Join-Path $script:InstallRoot 'desktop.ps1'), (Join-Path $script:InstallRoot 'agent.ps1') -Force -ErrorAction SilentlyContinue
 
     # Register a normal uninstall entry so the extracted release folder can be deleted.
     $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FSDL'
@@ -318,6 +454,18 @@ try {
     New-ItemProperty -Path $uninstallKey -Name NoModify -Value 1 -PropertyType DWord -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name NoRepair -Value 1 -PropertyType DWord -Force | Out-Null
 
+    # Start Menu shortcut is scoped to the current Windows user only.
+    try {
+        $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'OpenTabletDisplay.lnk'
+        $wsh = New-Object -ComObject WScript.Shell
+        $shortcut = $wsh.CreateShortcut($menu)
+        $shortcut.TargetPath = Join-Path $script:InstallRoot 'OpenTabletDisplay.exe'
+        $shortcut.WorkingDirectory = $script:InstallRoot
+        $shortcut.Description = 'Use an Android tablet as a wired second Windows screen'
+        $shortcut.Save()
+    } catch {
+        Write-FSDLLog ('Start Menu shortcut could not be created: ' + $_.Exception.Message) $logPath
+    }
     Write-FSDLLog 'Install/update completed successfully.' $logPath
     Write-Host ''
     Write-Host 'OpenTabletDisplay is installed.' -ForegroundColor Green
@@ -333,6 +481,7 @@ try {
     if (Test-Path (Join-Path $script:InstallRoot 'sunshine-webui.txt')) {
         Write-Host ('Fresh Sunshine Web UI credentials: ' + (Join-Path $script:InstallRoot 'sunshine-webui.txt'))
     }
+    $installLock.Dispose()
     exit 0
 }
 catch {
@@ -359,4 +508,7 @@ catch {
         } catch {}
     }
     throw
+}
+finally {
+    if ($installLock) { $installLock.Dispose() }
 }

@@ -81,9 +81,31 @@ if ($RemoveDependencies -and $state) {
 }
 
 Remove-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FSDL' -Recurse -Force -ErrorAction SilentlyContinue
+# Remove only our Start Menu entry, and only when it still points at our app.
+try {
+    $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'OpenTabletDisplay.lnk'
+    if (Test-Path -LiteralPath $link) {
+        $wsh = New-Object -ComObject WScript.Shell
+        $target = [string]$wsh.CreateShortcut($link).TargetPath
+        if ($target -ieq (Join-Path $script:InstallRoot 'OpenTabletDisplay.exe')) {
+            Remove-Item -LiteralPath $link -Force
+        }
+    }
+} catch {
+    Write-FSDLLog ('Start Menu cleanup skipped: ' + $_.Exception.Message) $logPath
+}
 
-# Defer deleting the directory that contains this running script.
-$rootEscaped = $script:InstallRoot.Replace('"','""')
-$cmd = '/c ping 127.0.0.1 -n 3 >nul & rmdir /s /q "' + $rootEscaped + '"'
-Start-Process -FilePath 'cmd.exe' -ArgumentList $cmd -WindowStyle Hidden | Out-Null
-Write-Host 'OpenTabletDisplay removed. Sunshine/VDD were preserved unless -RemoveDependencies was explicitly requested and ownership was recorded.' -ForegroundColor Green
+# Avoid hidden cmd.exe delayed deletion or a broad shell command. Clean up
+# only our known application root using PowerShell's literal-path API after
+# restoring ownership-scoped settings and unregistering the background task.
+Write-Host 'Uninstalling OpenTabletDisplay application files.' -ForegroundColor Cyan
+# Give the user-facing native GUI a chance to exit and release its EXE handle.
+Start-Sleep -Seconds 2
+try {
+    Remove-Item -LiteralPath $script:InstallRoot -Recurse -Force -ErrorAction Stop
+    Write-Host 'OpenTabletDisplay removed. Sunshine and unrelated drivers were preserved.' -ForegroundColor Green
+} catch {
+    Write-Warning ('Some application files could not be deleted because Windows has them open: ' + $_.Exception.Message)
+    Write-Warning ('After closing OpenTabletDisplay, remove this app-owned directory if it remains: ' + $script:InstallRoot)
+    throw 'Integration settings were restored, but app file cleanup was incomplete.'
+}

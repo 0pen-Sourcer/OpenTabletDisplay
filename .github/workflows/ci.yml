@@ -28,25 +28,96 @@ jobs:
         run: go test -race ./...
       - name: Offline self-test
         run: go run ./cmd/fsdl --selftest
-      - name: Cross-build release payload
+      - name: Cross-build transport only (no legacy Windows archive)
         run: ./scripts/build-release.sh
-      - name: Upload package
-        uses: actions/upload-artifact@v4
-        with:
-          name: OpenTabletDisplay-windows-x64
-          path: dist/OpenTabletDisplay-*-windows-x64.zip
-          if-no-files-found: error
-
   powershell:
     name: Windows installer parse
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Bootstrap installer log in a clean directory
+        shell: powershell
+        run: |
+          . ./installer/common.ps1
+          $root = Join-Path $env:RUNNER_TEMP ('otd-bootstrap-' + [guid]::NewGuid().ToString('N'))
+          $logPath = Join-Path $root 'logs\install.log'
+          try {
+            if (Test-Path $root) { throw 'Expected a clean test directory.' }
+            Initialize-FSDLInstallLog $logPath
+            if (-not (Test-Path -LiteralPath $logPath)) { throw 'Installer failed to create its first-run log.' }
+            $content = Get-Content -LiteralPath $logPath -Raw
+            if (-not $content.StartsWith('OpenTabletDisplay ' + $script:FSDLVersion + ' install ')) {
+              throw 'Installer log header was not written.'
+            }
+          } finally {
+            Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+          }
+      - name: VDD PnP identity regression
+        shell: powershell
+        run: |
+          . ./installer/common.ps1
+          function Get-PnpDevice {
+            @(
+              [pscustomobject]@{ InstanceId='ROOT\DISPLAY\0001'; Status='OK'; HardwareID=@('ROOT\MttVDD') },
+              [pscustomobject]@{ InstanceId='ROOT\DISPLAY\0002'; Status='OK'; HardwareID=@('ROOT\Other') }
+            )
+          }
+          function Get-PnpDeviceProperty { param($InstanceId, $KeyName, $ErrorAction) [pscustomobject]@{ Data=@() } }
+          $devices = @(Get-FSDLVddDevices)
+          if ($devices.Count -ne 1 -or $devices[0].InstanceId -ne 'ROOT\DISPLAY\0001') {
+            throw 'VDD detection must use exact hardware IDs, not only ROOT\MTTVDD instance prefixes.'
+          }
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build and inspect the native Windows application
+        shell: powershell
+        run: |
+          ./scripts/build-release.ps1 -SkipTests
+          if ($LASTEXITCODE -ne 0) { throw 'Windows release build failed.' }
+          $archive = Get-ChildItem dist -Filter 'OpenTabletDisplay-*-windows-x64.zip' -File | Select-Object -First 1
+          if (-not $archive) { throw 'Native Windows archive was not produced.' }
+          $testRoot = Join-Path $env:RUNNER_TEMP 'otd-release-inspection'
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath $testRoot -Force
+          foreach ($required in @('OpenTabletDisplay.exe','assets\OpenTabletDisplay.ico','assets\OpenTabletDisplay.png','installer\install.ps1', 'payload\FSDL.exe','payload\FSDL-Agent.exe','payload\probes\fsdl-probe-android-arm64','SHA256SUMS.txt')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $testRoot $required))) { throw ('Release package missing: ' + $required) }
+          }
+          if (Test-Path (Join-Path $testRoot 'installer\desktop.ps1')) { throw 'Legacy PowerShell-hosted UI must never ship in native release.' }
+          Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class IconCheck { [DllImport("shell32.dll", CharSet=CharSet.Unicode)] public static extern uint ExtractIconEx(string file, int index, IntPtr[] large, IntPtr[] small, uint count); }'
+          $appExe = Join-Path $testRoot 'OpenTabletDisplay.exe'
+          if ([IconCheck]::ExtractIconEx($appExe, -1, $null, $null, 0) -lt 1) { throw 'Embedded Windows icon missing.' }
+          # GUI-subsystem EXEs launch asynchronously from PowerShell; explicitly
+          # wait for the native WPF process rather than trusting $LASTEXITCODE.
+          $smoke = Start-Process -FilePath $appExe -ArgumentList '--selftest' -PassThru
+          try {
+            if (-not $smoke.WaitForExit(45000)) {
+              $smoke.Kill()
+              throw 'Native WPF self-test timed out after 45 seconds.'
+            }
+            if ($smoke.ExitCode -ne 0) { throw ('Native WPF smoke test failed: exit ' + $smoke.ExitCode) }
+          } finally { $smoke.Dispose() }
+          $manifestRows = @(Get-Content (Join-Path $testRoot 'SHA256SUMS.txt'))
+          foreach ($row in $manifestRows) {
+            if ($row -notmatch '^([0-9a-f]{64})  (.+)$') { throw ('Invalid SHA256 manifest entry: ' + $row) }
+            $target = Join-Path $testRoot ($matches[2].Replace('/','\'))
+            if (-not (Test-Path $target)) { throw ('Missing hashed file: ' + $target) }
+            if ((Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $matches[1]) { throw ('Payload checksum mismatch: ' + $target) }
+          }
+          # Windows may briefly retain a mapped EXE while releasing the process.
+          for ($attempt = 0; $attempt -lt 10; $attempt++) {
+            try { Remove-Item $testRoot -Recurse -Force -ErrorAction Stop; break }
+            catch { Start-Sleep -Milliseconds 300 }
+          }
+          if (Test-Path $testRoot) { throw 'Test executable remains locked after the native app should have exited.' }
       - name: Parse every PowerShell script
         shell: powershell
         run: |
           $failed = $false
-          Get-ChildItem installer -Filter *.ps1 -File | ForEach-Object {
+          Get-ChildItem installer -Filter *.ps1 -File | Where-Object { $_.Name -ne 'desktop.ps1' } | ForEach-Object {
             $tokens = $null
             $errors = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors)
@@ -57,3 +128,11 @@ jobs:
             }
           }
           if ($failed) { exit 1 }
+      - name: Upload verified Windows release-candidate package
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenTabletDisplay-Native-WPF-RC3
+          path: |
+            dist/OpenTabletDisplay-*-windows-x64.zip
+            dist/OpenTabletDisplay-*-windows-x64.zip.sha256
+          if-no-files-found: error

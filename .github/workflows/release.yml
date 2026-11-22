@@ -1,4 +1,4 @@
-name: Release
+name: Signed Windows Release
 on:
   push:
     tags: ['v*']
@@ -8,16 +8,82 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    env:
+      OTD_HARDWARE_APPROVED: ${{ vars.OTD_HARDWARE_APPROVED }}
+      OTD_SIGNER_THUMBPRINT: ${{ vars.OTD_SIGNER_THUMBPRINT }}
+      OTD_SIGNING_PFX_BASE64: ${{ secrets.OTD_SIGNING_PFX_BASE64 }}
+      OTD_SIGNING_PFX_PASSWORD: ${{ secrets.OTD_SIGNING_PFX_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      - name: Fail closed without signed release authorization
+        shell: powershell
+        run: |
+          if ($env:OTD_HARDWARE_APPROVED -ne 'approved') { throw 'Physical device QA signoff missing. Public release blocked.' }
+          if (-not $env:OTD_SIGNER_THUMBPRINT -or -not $env:OTD_SIGNING_PFX_BASE64 -or -not $env:OTD_SIGNING_PFX_PASSWORD) {
+            throw 'Trusted publisher certificate/identity missing. Unsigned public release blocked.'
+          }
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-      - name: Build audited package
-        run: ./scripts/build-release.sh
-      - name: Create GitHub release
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build package with full test suite
+        shell: powershell
+        run: ./scripts/build-release.ps1
+      - name: Sign native app and transport executables
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pfx = Join-Path $env:RUNNER_TEMP 'otd-publisher.pfx'
+          $cert = $null
+          try {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:OTD_SIGNING_PFX_BASE64))
+            $pwd = ConvertTo-SecureString $env:OTD_SIGNING_PFX_PASSWORD -AsPlainText -Force
+            $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pwd -Exportable:$false
+            if (-not $cert -or $cert.Thumbprint -ne $env:OTD_SIGNER_THUMBPRINT) { throw 'Publisher fingerprint does not match expected identity.' }
+            $kits = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
+            $tool = Get-ChildItem $kits -Filter signtool.exe -File -Recurse |
+                Where-Object { $_.FullName -match '\\x64\\signtool.exe$' } | Sort-Object FullName -Descending | Select-Object -First 1
+            if (-not $tool) { throw 'Windows SDK signtool not found.' }
+            $package = Get-ChildItem dist -Directory -Filter 'OpenTabletDisplay-*-windows-x64' | Select-Object -First 1
+            if (-not $package) { throw 'Package directory missing.' }
+            foreach ($relative in @('OpenTabletDisplay.exe','payload\FSDL.exe','payload\FSDL-Agent.exe')) {
+              $exe = Join-Path $package.FullName $relative
+              & $tool.FullName sign /fd SHA256 /sha1 $cert.Thumbprint /tr http://timestamp.digicert.com /td SHA256 $exe
+              if ($LASTEXITCODE -ne 0) { throw ('Signing failed: ' + $relative) }
+              $sig = Get-AuthenticodeSignature -LiteralPath $exe
+              if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Thumbprint -ne $env:OTD_SIGNER_THUMBPRINT) {
+                throw ('Signature verification failed: ' + $relative)
+              }
+            }
+            # PowerShell install/uninstall scripts must carry publisher signatures
+            # as well; no -ExecutionPolicy Bypass is used by the product.
+            foreach ($scriptFile in @(Get-ChildItem (Join-Path $package.FullName 'installer') -Filter '*.ps1' -File)) {
+              $signed = Set-AuthenticodeSignature -LiteralPath $scriptFile.FullName -Certificate $cert -TimestampServer 'http://timestamp.digicert.com' -HashAlgorithm SHA256
+              if ($signed.Status -ne 'Valid' -or $signed.SignerCertificate.Thumbprint -ne $env:OTD_SIGNER_THUMBPRINT) {
+                throw ('Installer script signature verification failed: ' + $scriptFile.Name + ' (' + $signed.Status + ')')
+              }
+            }
+            $manifest = Join-Path $package.FullName 'SHA256SUMS.txt'
+            $rows = Get-ChildItem $package.FullName -File -Recurse | Where-Object { $_.FullName -ne $manifest } | Sort-Object FullName | ForEach-Object {
+              (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' +
+                $_.FullName.Substring($package.FullName.Length + 1).Replace('\','/')
+            }
+            $rows | Set-Content $manifest -Encoding ASCII
+            $zip = Join-Path (Split-Path $package.FullName -Parent) ($package.Name + '.zip')
+            Remove-Item $zip -Force
+            Compress-Archive -Path (Join-Path $package.FullName '*') -DestinationPath $zip -CompressionLevel Optimal
+            $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+            ($hash + '  ' + [IO.Path]::GetFileName($zip)) | Set-Content ($zip + '.sha256') -Encoding ASCII
+          }
+          finally {
+            if ($cert) { Remove-Item ('Cert:\CurrentUser\My\' + $cert.Thumbprint) -Force -ErrorAction SilentlyContinue }
+            Remove-Item $pfx -Force -ErrorAction SilentlyContinue
+          }
+      - name: Publish verified signed release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
