@@ -261,6 +261,10 @@ $xaml = @'
                   <Button x:Name="CheckUsbButton" Content="Check connected device" Style="{StaticResource SecondaryButton}"/>
                   <TextBlock x:Name="UsbActivity" Text="Not checked yet" Style="{StaticResource Muted}" Margin="14,10,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,11,0,0">
+                  <ComboBox x:Name="UsbDeviceList" Width="215" Height="39" Background="#22334A" Foreground="#FFFFFF" BorderBrush="#3A577C" VerticalContentAlignment="Center" Padding="9,5" ToolTip="Authorized Android devices discovered through ADB"/>
+                  <Button x:Name="EnrollDeviceButton" Content="Use selected device" Style="{StaticResource SecondaryButton}" Margin="11,0,0,0" IsEnabled="False"/>
+                </StackPanel>
               </StackPanel>
             </Border>
             <Border Style="{StaticResource Card}" Margin="0,0,0,18">
@@ -382,7 +386,7 @@ $names = @(
     'OverviewPage','ConnectPage','DiagnosticsPage','SettingsPage','NavOverview','NavConnect','NavDiagnostics','NavSettings',
     'RefreshButton','PageEyebrow','PageHeading','PageSubheading','HeroTitle','HeroDescription','HeroSetup','HeroDetails',
     'AppStatus','AppDetail','SunStatus','DriverStatus','DeviceStatus','SidebarDot','SidebarState','OverviewGuide',
-    'InstallButton','OpenLogsButton','InstallProgress','InstallActivity','MoonlightButton','SunshineButton','CheckUsbButton','UsbActivity','HostAddress','CopyHostButton','DoctorButton',
+    'InstallButton','OpenLogsButton','InstallProgress','InstallActivity','MoonlightButton','SunshineButton','CheckUsbButton','UsbActivity','UsbDeviceList','EnrollDeviceButton','HostAddress','CopyHostButton','DoctorButton',
     'ExportButton','CopyButton','DiagnosticOutput','StartBridgeButton','StopBridgeButton','ResetDeviceButton',
     'OpenFolderButton','HelpButton','ReportButton','FooterText'
 )
@@ -572,6 +576,14 @@ function Poll-USBDevice {
         $rows = @($raw -split '[\r\n]+' | Where-Object { $_ -match '^\S+\s+(device|unauthorized|offline)\b' })
         $auth = @($rows | Where-Object { $_ -match '^\S+\s+device\b' })
         $unauthed = @($rows | Where-Object { $_ -match '^\S+\s+unauthorized\b' })
+        $script:UI.UsbDeviceList.Items.Clear()
+        foreach ($item in $auth) {
+            if ($item -match '^([A-Za-z0-9._:-]{1,128})\s+device\b') {
+                [void]$script:UI.UsbDeviceList.Items.Add([string]$matches[1])
+            }
+        }
+        $script:UI.EnrollDeviceButton.IsEnabled = ($script:UI.UsbDeviceList.Items.Count -gt 0)
+        if ($script:UI.UsbDeviceList.Items.Count -eq 1) { $script:UI.UsbDeviceList.SelectedIndex = 0 }
         if ($unauthed.Count -gt 0) { $script:UI.UsbActivity.Text = 'Approve USB debugging on Android' }
         elseif ($auth.Count -eq 1 -and $rows.Count -eq 1) { $script:UI.UsbActivity.Text = 'Authorized Android found' }
         elseif ($auth.Count -gt 1) { $script:UI.UsbActivity.Text = 'Disconnect extra devices' }
@@ -657,6 +669,104 @@ $script:UI.OverviewGuide.Add_Click({ Show-Page 'Connect' })
 $script:UI.InstallButton.Add_Click({ Start-Setup })
 $script:UI.OpenLogsButton.Add_Click({ Show-Page 'Diagnostics'; Refresh-DiagnosticText })
 $script:UI.CheckUsbButton.Add_Click({ Check-USBDevice })
+$script:UI.EnrollDeviceButton.Add_Click({
+    $serial = [string]$script:UI.UsbDeviceList.SelectedItem
+    if ($serial -notmatch '^[A-Za-z0-9._:-]{1,128}
+$script:UI.CopyHostButton.Add_Click({
+    $address = [string]$script:UI.HostAddress.Text
+    if ($address -match '^\d{1,3}(\.\d{1,3}){3}
+$script:UI.SunshineButton.Add_Click({ Open-Link 'https://localhost:47990' })
+$script:UI.DoctorButton.Add_Click({ Run-Doctor })
+$script:UI.CopyButton.Add_Click({
+    try { [System.Windows.Clipboard]::SetText($script:UI.DiagnosticOutput.Text); Set-Feedback 'Diagnostic text copied. Check for private data before sharing.' }
+    catch { Show-Error ('Unable to copy: ' + $_.Exception.Message) }
+})
+$script:UI.ExportButton.Add_Click({ Export-Report })
+$script:UI.StartBridgeButton.Add_Click({ Invoke-BridgeCommand 'start' })
+$script:UI.StopBridgeButton.Add_Click({ Invoke-BridgeCommand 'stop' })
+$script:UI.ResetDeviceButton.Add_Click({
+    $answer = [System.Windows.MessageBox]::Show($window,
+        'Forget the currently enrolled Android device? You will need to authorize and enroll a device again. This does not remove Sunshine or Windows drivers.',
+        'Forget Android device?', 'YesNo', 'Warning')
+    if ($answer -eq 'Yes') { Invoke-BridgeCommand 'reset-device' }
+})
+$script:UI.OpenFolderButton.Add_Click({
+    if (Test-Path -LiteralPath $script:InstallRoot) { Start-Process -FilePath explorer.exe -ArgumentList ('"' + $script:InstallRoot + '"') }
+    else { Show-Message 'No installation folder exists yet.' }
+})
+$script:UI.HelpButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/blob/main/docs/TROUBLESHOOTING.md' })
+$script:UI.ReportButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/new/choose' })
+
+$timer = New-Object System.Windows.Threading.DispatcherTimer
+$timer.Interval = [TimeSpan]::FromSeconds(2)
+$script:Ticks = 0
+$timer.Add_Tick({
+    Poll-Install
+    Poll-Doctor
+    Poll-USBDevice
+    $script:Ticks++
+    if ($script:Ticks % 3 -eq 0) { Refresh-Health }
+})
+$window.Add_Loaded({ Refresh-Health; $timer.Start() })
+$window.Add_Closing({ $timer.Stop() })
+Show-Page 'Overview'
+[void]$window.ShowDialog()
+) {
+        [System.Windows.Clipboard]::SetText($address)
+        Set-Feedback 'Moonlight host address copied.'
+    } else { Show-Message 'No active host address yet. Connect Android and let the USB bridge start.' }
+})
+$script:UI.MoonlightButton.Add_Click({ Open-Link 'https://play.google.com/store/apps/details?id=com.limelight' })
+$script:UI.SunshineButton.Add_Click({ Open-Link 'https://localhost:47990' })
+$script:UI.DoctorButton.Add_Click({ Run-Doctor })
+$script:UI.CopyButton.Add_Click({
+    try { [System.Windows.Clipboard]::SetText($script:UI.DiagnosticOutput.Text); Set-Feedback 'Diagnostic text copied. Check for private data before sharing.' }
+    catch { Show-Error ('Unable to copy: ' + $_.Exception.Message) }
+})
+$script:UI.ExportButton.Add_Click({ Export-Report })
+$script:UI.StartBridgeButton.Add_Click({ Invoke-BridgeCommand 'start' })
+$script:UI.StopBridgeButton.Add_Click({ Invoke-BridgeCommand 'stop' })
+$script:UI.ResetDeviceButton.Add_Click({
+    $answer = [System.Windows.MessageBox]::Show($window,
+        'Forget the currently enrolled Android device? You will need to authorize and enroll a device again. This does not remove Sunshine or Windows drivers.',
+        'Forget Android device?', 'YesNo', 'Warning')
+    if ($answer -eq 'Yes') { Invoke-BridgeCommand 'reset-device' }
+})
+$script:UI.OpenFolderButton.Add_Click({
+    if (Test-Path -LiteralPath $script:InstallRoot) { Start-Process -FilePath explorer.exe -ArgumentList ('"' + $script:InstallRoot + '"') }
+    else { Show-Message 'No installation folder exists yet.' }
+})
+$script:UI.HelpButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/blob/main/docs/TROUBLESHOOTING.md' })
+$script:UI.ReportButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/new/choose' })
+
+$timer = New-Object System.Windows.Threading.DispatcherTimer
+$timer.Interval = [TimeSpan]::FromSeconds(2)
+$script:Ticks = 0
+$timer.Add_Tick({
+    Poll-Install
+    Poll-Doctor
+    $script:Ticks++
+    if ($script:Ticks % 3 -eq 0) { Refresh-Health }
+})
+$window.Add_Loaded({ Refresh-Health; $timer.Start() })
+$window.Add_Closing({ $timer.Stop() })
+Show-Page 'Overview'
+[void]$window.ShowDialog()
+) {
+        Show-Message 'Choose a detected, authorized Android device first.'
+        return
+    }
+    $answer = [System.Windows.MessageBox]::Show($window,
+        ('Use Android device ' + $serial + ' for your second display? This changes the enrolled USB device only.'),
+        'Select Android device', 'YesNo', 'Question')
+    if ($answer -ne 'Yes') { return }
+    try {
+        $out = Join-Path $script:InstallRoot 'logs\manual-enroll.txt'
+        $err = Join-Path $script:InstallRoot 'logs\manual-enroll-error.txt'
+        Start-Process -FilePath $script:RuntimeExe -ArgumentList @('enroll',$serial) -PassThru -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err | Out-Null
+        Set-Feedback 'Device enrollment requested. Run diagnostics to confirm the result.'
+    } catch { Show-Error ('Unable to enroll the device: ' + $_.Exception.Message) }
+})
 $script:UI.CopyHostButton.Add_Click({
     $address = [string]$script:UI.HostAddress.Text
     if ($address -match '^\d{1,3}(\.\d{1,3}){3}
