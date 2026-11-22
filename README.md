@@ -144,6 +144,7 @@ Read [Security](SECURITY.md), [Architecture](docs/ARCHITECTURE.md) and [Third-pa
 
 ## Documentation
 
+- [Desktop app and first-run setup](docs/DESKTOP_APP.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Compatibility](docs/COMPATIBILITY.md)
 - [Moonlight client setup](docs/MOONLIGHT.md)
