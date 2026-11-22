@@ -77,6 +77,10 @@ jobs:
       - name: Validate desktop WPF layout
         shell: powershell
         run: |
+          $raw = [System.IO.File]::ReadAllBytes('installer/desktop.ps1')
+          if ($raw.Length -lt 3 -or $raw[0] -ne 239 -or $raw[1] -ne 187 -or $raw[2] -ne 191) {
+            throw 'Desktop UI must contain UTF-8 BOM for Windows PowerShell 5.1'
+          }
           Add-Type -AssemblyName PresentationFramework
           $source = Get-Content installer/desktop.ps1 -Raw
           $match = [regex]::Match($source, "(?s)\`$xaml = @'[\r\n]+(.*?)[\r\n]+'@")
@@ -112,9 +116,19 @@ jobs:
           $testRoot = Join-Path $env:RUNNER_TEMP 'otd-release-inspection'
           Expand-Archive -LiteralPath $archive.FullName -DestinationPath $testRoot -Force
           $bundle = Get-ChildItem -LiteralPath $testRoot -Directory | Select-Object -First 1
-          foreach ($required in @('OpenTabletDisplay.exe','installer\desktop.ps1','installer\install.ps1','payload\FSDL.exe','payload\probes\fsdl-probe-android-arm64')) {
+          foreach ($required in @('OpenTabletDisplay.exe','assets\OpenTabletDisplay.ico','assets\OpenTabletDisplay.png','installer\desktop.ps1','installer\install.ps1','payload\FSDL.exe','payload\probes\fsdl-probe-android-arm64')) {
             if (-not (Test-Path -LiteralPath (Join-Path $bundle.FullName $required))) { throw ('Release package missing: ' + $required) }
           }
+          Add-Type -TypeDefinition @'
+using System; using System.Runtime.InteropServices;
+public class IconCheck {
+ [DllImport("shell32.dll", CharSet=CharSet.Unicode)]
+ public static extern uint ExtractIconEx(string file, int index, IntPtr[] large, IntPtr[] small, uint count);
+}
+'@
+          $appExe = Join-Path $bundle.FullName 'OpenTabletDisplay.exe'
+          $iconCount = [IconCheck]::ExtractIconEx($appExe, -1, $null, $null, 0)
+          if ($iconCount -lt 1) { throw 'Windows Explorer icon missing from packaged executable.' }
           & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $bundle.FullName 'installer\desktop.ps1') -SmokeTest
           if ($LASTEXITCODE -ne 0) { throw 'Packaged app smoke test failed.' }
           Remove-Item -LiteralPath $testRoot -Recurse -Force
