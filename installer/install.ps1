@@ -366,6 +366,7 @@ try {
         Copy-Item -LiteralPath $payloadAgent -Destination (Join-Path $pendingPackage 'payload\FSDL-Agent.exe') -Force
         Copy-Item -Path (Join-Path $payloadProbes '*') -Destination (Join-Path $pendingPackage 'payload\probes') -Force
         Copy-Item -LiteralPath $desktopExe -Destination (Join-Path $pendingPackage 'OpenTabletDisplay.exe') -Force
+        Copy-Item -LiteralPath $manifest -Destination (Join-Path $pendingPackage 'SHA256SUMS.txt') -Force
         foreach ($name in @('install.cmd','status.cmd','reset-device.cmd','uninstall.cmd')) {
             $source = Join-Path $packageRoot $name
             if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $pendingPackage $name) -Force }
