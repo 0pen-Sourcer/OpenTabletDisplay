@@ -85,8 +85,6 @@ internal static class SafeCommands
         };
         start.ArgumentList.Add("-NoProfile");
         start.ArgumentList.Add("-NonInteractive");
-        start.ArgumentList.Add("-ExecutionPolicy");
-        start.ArgumentList.Add("Bypass"); // Current child process only. Never Set-ExecutionPolicy, never modify Defender/AVG.
         start.ArgumentList.Add("-File");
         start.ArgumentList.Add(installer);
         start.ArgumentList.Add("-Elevated");
