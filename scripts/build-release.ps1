@@ -57,7 +57,7 @@ Copy-Item installer\*.ps1 (Join-Path $Out 'installer')
 Copy-Item install.cmd,status.cmd,reset-device.cmd,uninstall.cmd $Out
 Copy-Item README.md,LICENSE,THIRD_PARTY_NOTICES.md $Out
 New-Item -ItemType Directory -Force -Path (Join-Path $Out 'docs') | Out-Null
-Copy-Item docs\COMPATIBILITY.md,docs\MOONLIGHT.md,docs\TROUBLESHOOTING.md (Join-Path $Out 'docs')
+Copy-Item docs\DESKTOP_APP.md,docs\COMPATIBILITY.md,docs\MOONLIGHT.md,docs\TROUBLESHOOTING.md (Join-Path $Out 'docs')
 
 Write-Host '[7/8] checksums'
 $checksumPath = Join-Path $Out 'SHA256SUMS.txt'
