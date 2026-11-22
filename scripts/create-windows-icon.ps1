@@ -106,11 +106,22 @@ function Find-Tool([string]$name) {
             if(Test-Path $candidate) { return $candidate }
         }
     }
-    $vs=Join-Path $env:ProgramFiles 'Microsoft Visual Studio'
-    if(Test-Path $vs) {
-        $match=Get-ChildItem $vs -Recurse -Filter $name -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match 'Hostx64\\x64' } | Select-Object -First 1
-        if($match) { return $match.FullName }
+    $vsRoots=@(
+        (Join-Path $env:ProgramFiles 'Microsoft Visual Studio'),
+        (Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio')
+    )
+    foreach ($vs in $vsRoots) {
+        if (-not (Test-Path $vs)) { continue }
+        foreach ($version in @(Get-ChildItem $vs -Directory -ErrorAction SilentlyContinue)) {
+            foreach ($edition in @(Get-ChildItem $version.FullName -Directory -ErrorAction SilentlyContinue)) {
+                $toolRoot = Join-Path $edition.FullName 'VC\\Tools\\MSVC'
+                if (-not (Test-Path $toolRoot)) { continue }
+                foreach ($toolVer in @(Get-ChildItem $toolRoot -Directory | Sort-Object Name -Descending)) {
+                    $candidate = Join-Path $toolVer.FullName ('bin\\Hostx64\\x64\\' + $name)
+                    if (Test-Path $candidate) { return $candidate }
+                }
+            }
+        }
     }
     throw ('Required Windows SDK build tool not found: ' + $name)
 }
