@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -16,7 +16,8 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Build audited package
-        run: ./scripts/build-release.sh
+        shell: powershell
+        run: ./scripts/build-release.ps1
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
