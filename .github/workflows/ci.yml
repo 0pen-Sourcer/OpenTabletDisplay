@@ -59,6 +59,21 @@ jobs:
           } finally {
             Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
           }
+      - name: VDD PnP identity regression
+        shell: powershell
+        run: |
+          . ./installer/common.ps1
+          function Get-PnpDevice {
+            @(
+              [pscustomobject]@{ InstanceId='ROOT\DISPLAY\0001'; Status='OK'; HardwareID=@('ROOT\MttVDD') },
+              [pscustomobject]@{ InstanceId='ROOT\DISPLAY\0002'; Status='OK'; HardwareID=@('ROOT\Other') }
+            )
+          }
+          function Get-PnpDeviceProperty { param($InstanceId, $KeyName, $ErrorAction) [pscustomobject]@{ Data=@() } }
+          $devices = @(Get-FSDLVddDevices)
+          if ($devices.Count -ne 1 -or $devices[0].InstanceId -ne 'ROOT\DISPLAY\0001') {
+            throw 'VDD detection must use exact hardware IDs, not only ROOT\MTTVDD instance prefixes.'
+          }
       - name: Parse every PowerShell script
         shell: powershell
         run: |
