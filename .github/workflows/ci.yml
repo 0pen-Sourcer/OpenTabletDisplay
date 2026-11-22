@@ -93,6 +93,11 @@ jobs:
           } finally {
             $window.Close()
           }
+      - name: Exercise desktop controller in smoke mode
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File installer\desktop.ps1 -SmokeTest
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop PowerShell smoke test failed.' }
       - name: Parse every PowerShell script
         shell: powershell
         run: |
