@@ -9,6 +9,8 @@ Add-Type -AssemblyName WindowsBase
 $script:AppVersion = $script:FSDLVersion
 $script:InstallProcess = $null
 $script:DiagnosticProcess = $null
+$script:BridgeActionProcess = $null
+$script:BridgeAction = ''
 $script:Installing = $false
 $script:InstallFinished = $false
 $script:UsbProcess = $null
@@ -546,6 +548,12 @@ function Refresh-Health {
         $script:UI.DriverStatus.Text = $h.Driver
         $script:UI.DeviceStatus.Text = $h.Device
         $script:UI.HostAddress.Text = if ($h.Host) { $h.Host } else { 'Available after USB connection' }
+        # A partially installed app must never start a separate USB bridge.
+        $bridgeReady = $h.Installed -and (-not $script:Installing) -and (-not $script:BridgeActionProcess)
+        foreach ($control in @('StartBridgeButton','StopBridgeButton','ResetDeviceButton')) {
+            $script:UI[$control].IsEnabled = $bridgeReady
+        }
+        if (-not $bridgeReady) { $script:UI.EnrollDeviceButton.IsEnabled = $false }
         if ($h.Installed -and $h.Sunshine -eq 'Running' -and $h.Driver -eq 'Detected') {
             $script:UI.HeroTitle.Text = 'Your second screen is ready.'
             $script:UI.HeroDescription.Text = 'Connect an authorized Android device over USB and launch Desktop in Moonlight.'
@@ -569,6 +577,10 @@ function Refresh-Health {
     }
 }
 function Start-Setup {
+    if ($script:BridgeActionProcess) {
+        Show-Message 'Finish the current USB operation before installing or repairing.'
+        return
+    }
     if ($script:Installing) { Show-Message 'Installation is already running.'; return }
     $installer = Get-InstallerScript
     if (-not $installer) {
@@ -626,6 +638,10 @@ function Poll-Install {
     }
 }
 function Check-USBDevice {
+    if ($script:Installing) {
+        $script:UI.UsbActivity.Text = 'Finish Windows setup before checking Android.'
+        return
+    }
     $adb = Join-Path $script:InstallRoot 'runtime\tools\platform-tools\adb.exe'
     if (-not (Test-Path -LiteralPath $adb)) {
         $script:UI.UsbActivity.Text = 'USB tools missing; run setup first'
@@ -652,7 +668,7 @@ function Poll-USBDevice {
                 [void]$script:UI.UsbDeviceList.Items.Add([string]$matches[1])
             }
         }
-        $script:UI.EnrollDeviceButton.IsEnabled = ($script:UI.UsbDeviceList.Items.Count -gt 0)
+        $script:UI.EnrollDeviceButton.IsEnabled = (($script:UI.UsbDeviceList.Items.Count -gt 0) -and (-not $script:Installing) -and (Test-Path -LiteralPath (Join-Path $script:InstallRoot 'install-state.json')))
         if ($script:UI.UsbDeviceList.Items.Count -eq 1) { $script:UI.UsbDeviceList.SelectedIndex = 0 }
         if ($unauthed.Count -gt 0) { $script:UI.UsbActivity.Text = 'Approve USB debugging on Android' }
         elseif ($auth.Count -eq 1 -and $rows.Count -eq 1) { $script:UI.UsbActivity.Text = 'Authorized Android found' }
@@ -695,18 +711,56 @@ function Poll-Doctor {
     $script:DiagnosticProcess = $null
 }
 function Invoke-BridgeCommand([string]$Action) {
+    if ($script:Installing -or -not (Test-Path -LiteralPath (Join-Path $script:InstallRoot 'install-state.json'))) {
+        Show-Message 'Windows setup is still running or incomplete. Complete installation before using the USB bridge.'
+        return
+    }
+    if ($script:BridgeActionProcess) {
+        Show-Message 'Another USB operation is already running.'
+        return
+    }
     if (-not (Test-Path -LiteralPath $script:RuntimeExe)) {
-        Show-Message 'Install OpenTabletDisplay before controlling the USB connection.'
+        Show-Message 'USB runtime files are missing. Run Install / repair first.'
         return
     }
     try {
         $out = Join-Path $script:InstallRoot ('logs\manual-' + $Action + '.txt')
         $err = Join-Path $script:InstallRoot ('logs\manual-' + $Action + '-error.txt')
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $out) | Out-Null
-        Start-Process -FilePath $script:RuntimeExe -ArgumentList $Action -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err | Out-Null
-        Set-Feedback ('Requested ' + $Action + '. See Diagnostics for follow-up checks.')
-        Show-Message ('Command requested: ' + $Action + '. The background agent may reconnect automatically while your device is authorized.')
-    } catch { Show-Error ('Could not run operation: ' + $_.Exception.Message) }
+        Remove-Item -LiteralPath $out,$err -Force -ErrorAction SilentlyContinue
+        $script:BridgeActionProcess = Start-Process -FilePath $script:RuntimeExe -ArgumentList $Action -WindowStyle Hidden -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+        $script:BridgeAction = $Action
+        Set-Feedback ('USB ' + $Action + ' is running. See Diagnostics for the result.')
+        Refresh-Health
+    } catch {
+        $script:BridgeActionProcess = $null
+        $script:BridgeAction = ''
+        Show-Error ('Could not start USB operation: ' + $_.Exception.Message)
+    }
+}
+function Poll-BridgeCommand {
+    if (-not $script:BridgeActionProcess -or -not $script:BridgeActionProcess.HasExited) { return }
+    $action = $script:BridgeAction
+    $exitCode = $script:BridgeActionProcess.ExitCode
+    $stdout = Join-Path $script:InstallRoot ('logs\manual-' + $action + '.txt')
+    $stderr = Join-Path $script:InstallRoot ('logs\manual-' + $action + '-error.txt')
+    $result = ''
+    foreach ($log in @($stdout,$stderr)) {
+        if (Test-Path -LiteralPath $log) {
+            $result += (Get-Content -LiteralPath $log -Tail 20 -ErrorAction SilentlyContinue | Out-String)
+        }
+    }
+    $script:BridgeActionProcess = $null
+    $script:BridgeAction = ''
+    if ($exitCode -eq 0) {
+        Set-Feedback ('USB ' + $action + ' completed successfully.')
+    } else {
+        Set-Feedback ('USB ' + $action + ' failed (exit code ' + $exitCode + '). See Diagnostics.')
+        $detail = ($result.Trim())
+        if ($detail.Length -gt 1400) { $detail = $detail.Substring($detail.Length - 1400) }
+        Show-Error ('USB ' + $action + ' failed.' + [Environment]::NewLine + $detail)
+    }
+    Refresh-Health
 }
 function Export-Report {
     Refresh-DiagnosticText
@@ -740,6 +794,10 @@ $script:UI.InstallButton.Add_Click({ Start-Setup })
 $script:UI.OpenLogsButton.Add_Click({ Show-Page 'Diagnostics'; Refresh-DiagnosticText })
 $script:UI.CheckUsbButton.Add_Click({ Check-USBDevice })
 $script:UI.EnrollDeviceButton.Add_Click({
+    if ($script:Installing -or -not (Test-Path -LiteralPath (Join-Path $script:InstallRoot 'install-state.json'))) {
+        Show-Message 'Windows setup is incomplete. Finish installation before enrolling devices.'
+        return
+    }
     $serial = [string]$script:UI.UsbDeviceList.SelectedItem
     if ($serial -notmatch '^[A-Za-z0-9._:-]{1,128}$') {
         Show-Message 'Choose a detected, authorized Android device first.'
@@ -820,6 +878,7 @@ $timer.Add_Tick({
     Poll-Install
     Poll-Doctor
     Poll-USBDevice
+    Poll-BridgeCommand
     $script:Ticks++
     if ($script:Ticks % 3 -eq 0) { Refresh-Health }
 })
