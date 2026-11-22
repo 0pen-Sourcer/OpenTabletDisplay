@@ -179,9 +179,38 @@ function Protect-FSDLUserFile([string]$Path) {
     } catch {}
 }
 
+function Test-FSDLVddDevice($Device) {
+    if (-not $Device -or -not $Device.InstanceId) { return $false }
+    # NefCon may create an instance under ROOT\DISPLAY, although the installed
+    # driver's hardware ID remains ROOT\MttVDD. Match hardware identity,
+    # never a friendly name or an arbitrary virtual-display-looking device.
+    if ([string]$Device.InstanceId -match '(?i)^ROOT\\MTTVDD(\\|$)') { return $true }
+    $ids = @()
+    if ($Device.PSObject.Properties.Match('HardwareID').Count -gt 0) {
+        $ids += @($Device.HardwareID)
+    }
+    try {
+        $p = Get-PnpDeviceProperty -InstanceId $Device.InstanceId -KeyName 'DEVPKEY_Device_HardwareIds' -ErrorAction Stop
+        if ($p -and $p.Data) { $ids += @($p.Data) }
+    } catch {}
+    foreach ($id in $ids) {
+        if ([string]$id -ieq 'ROOT\MttVDD') { return $true }
+    }
+    return $false
+}
+
 function Get-FSDLVddDevices {
-    $devices = @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -match '^ROOT\\MTTVDD' })
-    return $devices
+    return @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { Test-FSDLVddDevice $_ })
+}
+
+function Wait-FSDLVdd([int]$Seconds = 30) {
+    $deadline = (Get-Date).AddSeconds($Seconds)
+    do {
+        $devices = @(Get-FSDLVddDevices)
+        if ($devices.Count -gt 0) { return $devices }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    return @()
 }
 
 function Get-FSDLDriverPublishedNames {
