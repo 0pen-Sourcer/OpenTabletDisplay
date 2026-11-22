@@ -89,7 +89,6 @@ $xaml = @'
       <Setter Property="Foreground" Value="#8AA6D2"/>
       <Setter Property="FontSize" Value="11"/>
       <Setter Property="FontWeight" Value="Bold"/>
-      <Setter Property="CharacterSpacing" Value="0"/>
     </Style>
     <Style x:Key="Heading" TargetType="TextBlock">
       <Setter Property="Foreground" Value="#F4F8FF"/>
@@ -583,8 +582,8 @@ function Export-Report {
     if (-not $save.ShowDialog($window)) { return }
     $t = [string]$script:UI.DiagnosticOutput.Text
     # Reports are opt-in; scrub the most common sensitive identifiers.
-    $t = $t.Replace([string]$env:USERPROFILE, '<USER_PROFILE>')
-    $t = $t.Replace([string]$env:USERNAME, '<USER>')
+    if ($env:USERPROFILE) { $t = $t.Replace([string]$env:USERPROFILE, '<USER_PROFILE>') }
+    if ($env:USERNAME) { $t = $t.Replace([string]$env:USERNAME, '<USER>') }
     $t = [regex]::Replace($t, '(?im)(Android enrollment:\s*)\S+', '$1<DEVICE_REDACTED>')
     $t = [regex]::Replace($t, '(?im)(serial(?:number)?\s*[:=]\s*)\S+', '$1<DEVICE_REDACTED>')
     $t = [regex]::Replace($t, '(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)', '<IP_REDACTED>')
