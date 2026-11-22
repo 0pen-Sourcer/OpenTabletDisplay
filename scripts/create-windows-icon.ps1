@@ -96,46 +96,16 @@ try {
     $w.Flush()
 } finally { $stream.Dispose() }
 
-function Find-Tool([string]$name) {
-    $found=Get-Command $name -ErrorAction SilentlyContinue
-    if($found) { return $found.Source }
-    $kits=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
-    if(Test-Path $kits) {
-        foreach($v in @(Get-ChildItem $kits -Directory | Sort-Object Name -Descending)) {
-            $candidate=Join-Path $v.FullName ('x64\' + $name)
-            if(Test-Path $candidate) { return $candidate }
-        }
-    }
-    $vsRoots=@(
-        (Join-Path $env:ProgramFiles 'Microsoft Visual Studio'),
-        (Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio')
-    )
-    foreach ($vs in $vsRoots) {
-        if (-not (Test-Path $vs)) { continue }
-        foreach ($version in @(Get-ChildItem $vs -Directory -ErrorAction SilentlyContinue)) {
-            foreach ($edition in @(Get-ChildItem $version.FullName -Directory -ErrorAction SilentlyContinue)) {
-                $toolRoot = Join-Path $edition.FullName 'VC\\Tools\\MSVC'
-                if (-not (Test-Path $toolRoot)) { continue }
-                foreach ($toolVer in @(Get-ChildItem $toolRoot -Directory | Sort-Object Name -Descending)) {
-                    $candidate = Join-Path $toolVer.FullName ('bin\\Hostx64\\x64\\' + $name)
-                    if (Test-Path $candidate) { return $candidate }
-                }
-            }
-        }
-    }
-    throw ('Required Windows SDK build tool not found: ' + $name)
-}
-$rc=Find-Tool 'rc.exe'
-$cvt=Find-Tool 'cvtres.exe'
-$temp=Join-Path $env:TEMP ('otd-icon-' + [guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Force -Path $temp | Out-Null
+# The Microsoft cvtres.exe COFF format is not accepted by Go's PE linker
+# (sectnum < 0). Use the small, pinned MIT-licensed Go-native resource tool.
+# Build-time only: not bundled or executed on end-user devices.
+Push-Location $root
 try {
-    $rcFile=Join-Path $temp 'icon.rc'
-    $res=Join-Path $temp 'icon.res'
-    [System.IO.File]::WriteAllText($rcFile, ('1 ICON "' + $icoPath.Replace('\','/') + '"'),[Text.Encoding]::ASCII)
-    & $rc /nologo ('/fo' + $res) $rcFile
-    if($LASTEXITCODE -ne 0 -or -not (Test-Path $res)) { throw 'Resource compiler failed' }
-    & $cvt /nologo /machine:x64 ('/out:' + $sysoPath) $res
-    if($LASTEXITCODE -ne 0 -or -not (Test-Path $sysoPath)) { throw 'Icon resource conversion failed' }
-} finally { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
-Write-Host 'Created multi-size Windows icon and embedded executable resource.'
+    & go run github.com/akavel/rsrc@v0.10.2 -arch amd64 -ico $icoPath -o $sysoPath
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $sysoPath)) {
+        throw 'Failed to generate Go-compatible embedded Windows icon resource.'
+    }
+} finally {
+    Pop-Location
+}
+Write-Host 'Created multi-size Windows icon and Go-compatible executable resource.'
