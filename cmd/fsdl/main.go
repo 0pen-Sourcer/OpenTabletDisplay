@@ -39,7 +39,7 @@ Usage:
 }
 
 func main() {
-	arg := "start"
+	arg := "help" // Never mutate USB state when FSDL.exe is double-clicked without an explicit command.
 	if len(os.Args) > 1 {
 		arg = strings.ToLower(os.Args[1])
 	}
