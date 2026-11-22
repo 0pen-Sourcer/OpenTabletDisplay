@@ -61,7 +61,12 @@ func main() {
 			fmt.Fprintln(os.Stderr, "Agent log directory:", err)
 			os.Exit(1)
 		}
-		logFile, err := os.OpenFile(filepath.Join(logDir, "agent.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+		logPath := filepath.Join(logDir, "agent.log")
+		if info, err := os.Stat(logPath); err == nil && info.Size() > 2<<20 {
+			_ = os.Remove(logPath + ".1")
+			_ = os.Rename(logPath, logPath+".1")
+		}
+		logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Agent log:", err)
 			os.Exit(1)
