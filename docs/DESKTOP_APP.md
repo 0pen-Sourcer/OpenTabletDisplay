@@ -27,7 +27,7 @@ The app is single-instance and does not start the USB transport merely because i
 ## Security commitments
 
 - No AVG/Defender disabling, antivirus exclusions, quarantine restores, security bypass, silent Android RSA trust, or silent VPN permissions.
-- Compiled WPF GUI is not hosted by powershell.exe. **Windows setup still uses elevated PowerShell scripts** to install pinned Sunshine and virtual-display dependencies, with process-scoped execution policy only; no global PowerShell policy is modified. Removing PowerShell from this privileged setup path entirely will require a separately audited native installer.
+- Compiled WPF GUI is not hosted by powershell.exe. **Windows setup still uses elevated PowerShell scripts** to install pinned Sunshine and virtual-display dependencies, without changing PowerShell execution policy; restrictive Windows script policies are respected and may block setup until signed/native installer support is available. Removing PowerShell from this privileged setup path entirely will require a separately audited native installer.
 - Exact pinned download SHA-256 checks and valid upstream signatures where supplied; local package manifest verifies extraction integrity.
 - Main app runs unelevated; UAC is user-triggered. Commands execute through fixed paths and .NET argument lists, not arbitrary shell strings.
 - No remote telemetry, personal data uploads or cloud login. Logs can contain local device information; exported reports have basic redaction but must still be reviewed.
