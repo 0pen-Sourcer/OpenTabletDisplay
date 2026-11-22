@@ -671,28 +671,56 @@ $script:UI.OpenLogsButton.Add_Click({ Show-Page 'Diagnostics'; Refresh-Diagnosti
 $script:UI.CheckUsbButton.Add_Click({ Check-USBDevice })
 $script:UI.EnrollDeviceButton.Add_Click({
     $serial = [string]$script:UI.UsbDeviceList.SelectedItem
-    if ($serial -notmatch '^[A-Za-z0-9._:-]{1,128}
+    if ($serial -notmatch '^[A-Za-z0-9._:-]{1,128}$') {
+        Show-Message 'Choose a detected, authorized Android device first.'
+        return
+    }
+    $answer = [System.Windows.MessageBox]::Show(
+        $window,
+        ('Use Android device ' + $serial + ' as your second display? This changes enrollment only.'),
+        'Select Android device', 'YesNo', 'Question'
+    )
+    if ($answer -ne 'Yes') { return }
+    try {
+        $out = Join-Path $script:InstallRoot 'logs\manual-enroll.txt'
+        $err = Join-Path $script:InstallRoot 'logs\manual-enroll-error.txt'
+        Start-Process -FilePath $script:RuntimeExe -ArgumentList @('enroll',$serial) -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err | Out-Null
+        Set-Feedback 'Device enrollment requested. Run diagnostics to confirm completion.'
+    } catch { Show-Error ('Unable to enroll device: ' + $_.Exception.Message) }
+})
 $script:UI.CopyHostButton.Add_Click({
     $address = [string]$script:UI.HostAddress.Text
-    if ($address -match '^\d{1,3}(\.\d{1,3}){3}
+    if ($address -match '^\d{1,3}(\.\d{1,3}){3}$') {
+        [System.Windows.Clipboard]::SetText($address)
+        Set-Feedback 'Moonlight host address copied.'
+    } else {
+        Show-Message 'No active host address yet. Connect Android and let the USB bridge start.'
+    }
+})
+$script:UI.MoonlightButton.Add_Click({ Open-Link 'https://play.google.com/store/apps/details?id=com.limelight' })
 $script:UI.SunshineButton.Add_Click({ Open-Link 'https://localhost:47990' })
 $script:UI.DoctorButton.Add_Click({ Run-Doctor })
 $script:UI.CopyButton.Add_Click({
-    try { [System.Windows.Clipboard]::SetText($script:UI.DiagnosticOutput.Text); Set-Feedback 'Diagnostic text copied. Check for private data before sharing.' }
-    catch { Show-Error ('Unable to copy: ' + $_.Exception.Message) }
+    try {
+        [System.Windows.Clipboard]::SetText($script:UI.DiagnosticOutput.Text)
+        Set-Feedback 'Diagnostic output copied. Check for private data before sharing.'
+    } catch { Show-Error ('Unable to copy diagnostic output: ' + $_.Exception.Message) }
 })
 $script:UI.ExportButton.Add_Click({ Export-Report })
 $script:UI.StartBridgeButton.Add_Click({ Invoke-BridgeCommand 'start' })
 $script:UI.StopBridgeButton.Add_Click({ Invoke-BridgeCommand 'stop' })
 $script:UI.ResetDeviceButton.Add_Click({
-    $answer = [System.Windows.MessageBox]::Show($window,
-        'Forget the currently enrolled Android device? You will need to authorize and enroll a device again. This does not remove Sunshine or Windows drivers.',
-        'Forget Android device?', 'YesNo', 'Warning')
+    $answer = [System.Windows.MessageBox]::Show(
+        $window,
+        'Forget the currently enrolled Android device? You will need to authorize and enroll again. Sunshine and Windows drivers are unchanged.',
+        'Forget Android device?', 'YesNo', 'Warning'
+    )
     if ($answer -eq 'Yes') { Invoke-BridgeCommand 'reset-device' }
 })
 $script:UI.OpenFolderButton.Add_Click({
-    if (Test-Path -LiteralPath $script:InstallRoot) { Start-Process -FilePath explorer.exe -ArgumentList ('"' + $script:InstallRoot + '"') }
-    else { Show-Message 'No installation folder exists yet.' }
+    if (Test-Path -LiteralPath $script:InstallRoot) {
+        Start-Process -FilePath explorer.exe -ArgumentList ('"' + $script:InstallRoot + '"') | Out-Null
+    } else { Show-Message 'The installation folder does not exist yet.' }
 })
 $script:UI.HelpButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/blob/main/docs/TROUBLESHOOTING.md' })
 $script:UI.ReportButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/new/choose' })
@@ -707,8 +735,7 @@ $timer.Add_Tick({
     $script:Ticks++
     if ($script:Ticks % 3 -eq 0) { Refresh-Health }
 })
-# Windows CI exercises the real script and its event wiring without
-# starting an interactive message loop or modifying the test runner.
+# Windows CI exercises actual controller wiring without an interactive window.
 if ($SmokeTest) {
     Show-Page 'Overview'
     Show-Page 'Connect'
@@ -718,142 +745,6 @@ if ($SmokeTest) {
     Show-Page 'Overview'
     return
 }
-$window.Add_Loaded({ Refresh-Health; $timer.Start() })
-$window.Add_Closing({ $timer.Stop() })
-Show-Page 'Overview'
-[void]$window.ShowDialog()
-) {
-        [System.Windows.Clipboard]::SetText($address)
-        Set-Feedback 'Moonlight host address copied.'
-    } else { Show-Message 'No active host address yet. Connect Android and let the USB bridge start.' }
-})
-$script:UI.MoonlightButton.Add_Click({ Open-Link 'https://play.google.com/store/apps/details?id=com.limelight' })
-$script:UI.SunshineButton.Add_Click({ Open-Link 'https://localhost:47990' })
-$script:UI.DoctorButton.Add_Click({ Run-Doctor })
-$script:UI.CopyButton.Add_Click({
-    try { [System.Windows.Clipboard]::SetText($script:UI.DiagnosticOutput.Text); Set-Feedback 'Diagnostic text copied. Check for private data before sharing.' }
-    catch { Show-Error ('Unable to copy: ' + $_.Exception.Message) }
-})
-$script:UI.ExportButton.Add_Click({ Export-Report })
-$script:UI.StartBridgeButton.Add_Click({ Invoke-BridgeCommand 'start' })
-$script:UI.StopBridgeButton.Add_Click({ Invoke-BridgeCommand 'stop' })
-$script:UI.ResetDeviceButton.Add_Click({
-    $answer = [System.Windows.MessageBox]::Show($window,
-        'Forget the currently enrolled Android device? You will need to authorize and enroll a device again. This does not remove Sunshine or Windows drivers.',
-        'Forget Android device?', 'YesNo', 'Warning')
-    if ($answer -eq 'Yes') { Invoke-BridgeCommand 'reset-device' }
-})
-$script:UI.OpenFolderButton.Add_Click({
-    if (Test-Path -LiteralPath $script:InstallRoot) { Start-Process -FilePath explorer.exe -ArgumentList ('"' + $script:InstallRoot + '"') }
-    else { Show-Message 'No installation folder exists yet.' }
-})
-$script:UI.HelpButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/blob/main/docs/TROUBLESHOOTING.md' })
-$script:UI.ReportButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/new/choose' })
-
-$timer = New-Object System.Windows.Threading.DispatcherTimer
-$timer.Interval = [TimeSpan]::FromSeconds(2)
-$script:Ticks = 0
-$timer.Add_Tick({
-    Poll-Install
-    Poll-Doctor
-    $script:Ticks++
-    if ($script:Ticks % 3 -eq 0) { Refresh-Health }
-})
-$window.Add_Loaded({ Refresh-Health; $timer.Start() })
-$window.Add_Closing({ $timer.Stop() })
-Show-Page 'Overview'
-[void]$window.ShowDialog()
-) {
-        Show-Message 'Choose a detected, authorized Android device first.'
-        return
-    }
-    $answer = [System.Windows.MessageBox]::Show($window,
-        ('Use Android device ' + $serial + ' for your second display? This changes the enrolled USB device only.'),
-        'Select Android device', 'YesNo', 'Question')
-    if ($answer -ne 'Yes') { return }
-    try {
-        $out = Join-Path $script:InstallRoot 'logs\manual-enroll.txt'
-        $err = Join-Path $script:InstallRoot 'logs\manual-enroll-error.txt'
-        Start-Process -FilePath $script:RuntimeExe -ArgumentList @('enroll',$serial) -PassThru -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err | Out-Null
-        Set-Feedback 'Device enrollment requested. Run diagnostics to confirm the result.'
-    } catch { Show-Error ('Unable to enroll the device: ' + $_.Exception.Message) }
-})
-$script:UI.CopyHostButton.Add_Click({
-    $address = [string]$script:UI.HostAddress.Text
-    if ($address -match '^\d{1,3}(\.\d{1,3}){3}
-$script:UI.SunshineButton.Add_Click({ Open-Link 'https://localhost:47990' })
-$script:UI.DoctorButton.Add_Click({ Run-Doctor })
-$script:UI.CopyButton.Add_Click({
-    try { [System.Windows.Clipboard]::SetText($script:UI.DiagnosticOutput.Text); Set-Feedback 'Diagnostic text copied. Check for private data before sharing.' }
-    catch { Show-Error ('Unable to copy: ' + $_.Exception.Message) }
-})
-$script:UI.ExportButton.Add_Click({ Export-Report })
-$script:UI.StartBridgeButton.Add_Click({ Invoke-BridgeCommand 'start' })
-$script:UI.StopBridgeButton.Add_Click({ Invoke-BridgeCommand 'stop' })
-$script:UI.ResetDeviceButton.Add_Click({
-    $answer = [System.Windows.MessageBox]::Show($window,
-        'Forget the currently enrolled Android device? You will need to authorize and enroll a device again. This does not remove Sunshine or Windows drivers.',
-        'Forget Android device?', 'YesNo', 'Warning')
-    if ($answer -eq 'Yes') { Invoke-BridgeCommand 'reset-device' }
-})
-$script:UI.OpenFolderButton.Add_Click({
-    if (Test-Path -LiteralPath $script:InstallRoot) { Start-Process -FilePath explorer.exe -ArgumentList ('"' + $script:InstallRoot + '"') }
-    else { Show-Message 'No installation folder exists yet.' }
-})
-$script:UI.HelpButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/blob/main/docs/TROUBLESHOOTING.md' })
-$script:UI.ReportButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/new/choose' })
-
-$timer = New-Object System.Windows.Threading.DispatcherTimer
-$timer.Interval = [TimeSpan]::FromSeconds(2)
-$script:Ticks = 0
-$timer.Add_Tick({
-    Poll-Install
-    Poll-Doctor
-    Poll-USBDevice
-    $script:Ticks++
-    if ($script:Ticks % 3 -eq 0) { Refresh-Health }
-})
-$window.Add_Loaded({ Refresh-Health; $timer.Start() })
-$window.Add_Closing({ $timer.Stop() })
-Show-Page 'Overview'
-[void]$window.ShowDialog()
-) {
-        [System.Windows.Clipboard]::SetText($address)
-        Set-Feedback 'Moonlight host address copied.'
-    } else { Show-Message 'No active host address yet. Connect Android and let the USB bridge start.' }
-})
-$script:UI.MoonlightButton.Add_Click({ Open-Link 'https://play.google.com/store/apps/details?id=com.limelight' })
-$script:UI.SunshineButton.Add_Click({ Open-Link 'https://localhost:47990' })
-$script:UI.DoctorButton.Add_Click({ Run-Doctor })
-$script:UI.CopyButton.Add_Click({
-    try { [System.Windows.Clipboard]::SetText($script:UI.DiagnosticOutput.Text); Set-Feedback 'Diagnostic text copied. Check for private data before sharing.' }
-    catch { Show-Error ('Unable to copy: ' + $_.Exception.Message) }
-})
-$script:UI.ExportButton.Add_Click({ Export-Report })
-$script:UI.StartBridgeButton.Add_Click({ Invoke-BridgeCommand 'start' })
-$script:UI.StopBridgeButton.Add_Click({ Invoke-BridgeCommand 'stop' })
-$script:UI.ResetDeviceButton.Add_Click({
-    $answer = [System.Windows.MessageBox]::Show($window,
-        'Forget the currently enrolled Android device? You will need to authorize and enroll a device again. This does not remove Sunshine or Windows drivers.',
-        'Forget Android device?', 'YesNo', 'Warning')
-    if ($answer -eq 'Yes') { Invoke-BridgeCommand 'reset-device' }
-})
-$script:UI.OpenFolderButton.Add_Click({
-    if (Test-Path -LiteralPath $script:InstallRoot) { Start-Process -FilePath explorer.exe -ArgumentList ('"' + $script:InstallRoot + '"') }
-    else { Show-Message 'No installation folder exists yet.' }
-})
-$script:UI.HelpButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/blob/main/docs/TROUBLESHOOTING.md' })
-$script:UI.ReportButton.Add_Click({ Open-Link 'https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/new/choose' })
-
-$timer = New-Object System.Windows.Threading.DispatcherTimer
-$timer.Interval = [TimeSpan]::FromSeconds(2)
-$script:Ticks = 0
-$timer.Add_Tick({
-    Poll-Install
-    Poll-Doctor
-    $script:Ticks++
-    if ($script:Ticks % 3 -eq 0) { Refresh-Health }
-})
 $window.Add_Loaded({ Refresh-Health; $timer.Start() })
 $window.Add_Closing({ $timer.Stop() })
 Show-Page 'Overview'
