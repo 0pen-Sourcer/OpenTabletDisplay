@@ -38,6 +38,19 @@ $xaml = @'
         Title="OpenTabletDisplay" Width="1130" Height="770" MinWidth="980" MinHeight="675"
         WindowStartupLocation="CenterScreen" Background="#0A101A" Foreground="#EFF4FC"
         FontFamily="Segoe UI" UseLayoutRounding="True" SnapsToDevicePixels="True">
+  <Window.Icon>
+    <DrawingImage>
+      <DrawingImage.Drawing>
+        <DrawingGroup>
+          <GeometryDrawing Brush="#427FF5" Geometry="M 0,0 L 32,0 32,32 0,32 Z"/>
+          <GeometryDrawing Brush="#FFFFFF" Geometry="M 5,7 L 24,7 24,22 5,22 Z"/>
+          <GeometryDrawing Brush="#193E78" Geometry="M 8,10 L 21,10 21,19 8,19 Z"/>
+          <GeometryDrawing Brush="#FFFFFF" Geometry="M 18,14 L 29,14 29,29 18,29 Z"/>
+          <GeometryDrawing Brush="#427FF5" Geometry="M 21,17 L 26,17 26,25 21,25 Z"/>
+        </DrawingGroup>
+      </DrawingImage.Drawing>
+    </DrawingImage>
+  </Window.Icon>
   <Window.Resources>
     <Style x:Key="PrimaryButton" TargetType="Button">
       <Setter Property="FontFamily" Value="Segoe UI"/>
