@@ -332,6 +332,16 @@ try {
     }
     Copy-Item -LiteralPath $desktopExe -Destination (Join-Path $script:InstallRoot 'OpenTabletDisplay.exe') -Force
     Copy-Item -LiteralPath $desktopScript -Destination (Join-Path $script:InstallRoot 'desktop.ps1') -Force
+    $brandedAssets = Join-Path $packageRoot 'assets'
+    if (-not (Test-Path -LiteralPath (Join-Path $brandedAssets 'OpenTabletDisplay.ico'))) {
+        throw 'Release is missing the official Windows icon assets.'
+    }
+    $installedAssets = Join-Path $script:InstallRoot 'assets'
+    New-Item -ItemType Directory -Force -Path $installedAssets | Out-Null
+    Copy-Item -Path (Join-Path $brandedAssets '*') -Destination $installedAssets -Force
+    $repairAssets = Join-Path $persistentPackage 'assets'
+    New-Item -ItemType Directory -Force -Path $repairAssets | Out-Null
+    Copy-Item -Path (Join-Path $brandedAssets '*') -Destination $repairAssets -Force
     Write-FSDLLog 'Saved the standalone desktop app and an offline repair package.' $logPath
 
     $state = [ordered]@{
