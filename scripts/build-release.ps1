@@ -42,6 +42,10 @@ Write-Host '[4/8] Compile USB transport and Android probes'
 $env:GOOS='windows'; $env:GOARCH='amd64'; $env:CGO_ENABLED='0'
 go build -trimpath -o (Join-Path $Out 'payload\FSDL.exe') ./cmd/fsdl
 if ($LASTEXITCODE -ne 0) { throw 'USB transport compilation failed' }
+# This separate agent has no visible console and is launched by a limited-user
+# scheduled task. It replaces the old hidden PowerShell watchdog.
+go build -trimpath -ldflags '-H=windowsgui' -o (Join-Path $Out 'payload\FSDL-Agent.exe') ./cmd/fsdl
+if ($LASTEXITCODE -ne 0) { throw 'Native USB agent compilation failed' }
 $env:GOOS='android'; $env:GOARCH='arm64'; $env:CGO_ENABLED='0'
 go build -trimpath -o (Join-Path $Out 'payload\probes\fsdl-probe-android-arm64') ./cmd/fsdl-probe
 if ($LASTEXITCODE -ne 0) { throw 'Android probe compilation failed' }
