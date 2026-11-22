@@ -69,12 +69,13 @@ internal static class SafeCommands
         // LocalAppData. Refuse a different-identity UAC flow rather than silently
         // modifying an administrator's profile instead of the actual user's.
         using var identity = WindowsIdentity.GetCurrent();
-        var principal = new WindowsPrincipal(identity);
-        if (!principal.IsInRole(WindowsBuiltInRole.Administrator))
+        var administratorSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        if (identity.Groups is null || !identity.Groups.Contains(administratorSid))
         {
-            // A normal admin account with UAC enabled has a filtered token, so
-            // membership in Administrators may still be detected as false.
-            // The installer itself still validates and handles elevation.
+            throw new InvalidOperationException(
+                "This preview does not support installation from a standard Windows account using a different administrator identity. " +
+                "To avoid writing application data into another person's profile, setup was blocked. " +
+                "Do not lower Windows security or change account permissions.");
         }
         var start = new ProcessStartInfo("powershell.exe")
         {
