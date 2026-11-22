@@ -362,6 +362,14 @@ $xaml = @'
                 </WrapPanel>
               </StackPanel>
             </Border>
+            <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+              <StackPanel>
+                <TextBlock Text="UNINSTALL" Style="{StaticResource Eyebrow}"/>
+                <TextBlock Text="Remove OpenTabletDisplay safely." Style="{StaticResource Heading}" Margin="0,9,0,7"/>
+                <TextBlock Text="This removes the USB integration and restores owned Sunshine settings. Existing Sunshine and display drivers are kept by default. Administrator confirmation is required." Style="{StaticResource Muted}" Margin="0,0,0,17"/>
+                <Button x:Name="UninstallButton" Content="Uninstall integration" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left"/>
+              </StackPanel>
+            </Border>
             <Border Background="#1F2B3B" CornerRadius="13" Padding="19">
               <StackPanel>
                 <TextBlock Text="SAFE BY DEFAULT" Foreground="#8AB7FC" FontSize="11" FontWeight="Bold"/>
@@ -401,7 +409,7 @@ $names = @(
     'AppStatus','AppDetail','SunStatus','DriverStatus','DeviceStatus','SidebarDot','SidebarState','OverviewGuide',
     'InstallButton','OpenLogsButton','InstallProgress','InstallActivity','MoonlightButton','SunshineButton','CheckUsbButton','UsbActivity','UsbDeviceList','EnrollDeviceButton','HostAddress','CopyHostButton','DoctorButton',
     'ExportButton','CopyButton','DiagnosticOutput','StartBridgeButton','StopBridgeButton','ResetDeviceButton',
-    'OpenFolderButton','HelpButton','ReportButton','FooterText'
+    'OpenFolderButton','HelpButton','ReportButton','UninstallButton','FooterText'
 )
 $script:UI = @{}
 foreach ($name in $names) { $script:UI[$name] = $window.FindName($name) }
@@ -729,6 +737,24 @@ $script:UI.ResetDeviceButton.Add_Click({
         'Forget Android device?', 'YesNo', 'Warning'
     )
     if ($answer -eq 'Yes') { Invoke-BridgeCommand 'reset-device' }
+})
+$script:UI.UninstallButton.Add_Click({
+    $uninstall = Join-Path $script:InstallRoot 'uninstall.ps1'
+    if (-not (Test-Path -LiteralPath $uninstall)) {
+        Show-Message 'No installed integration was found.'
+        return
+    }
+    $answer = [System.Windows.MessageBox]::Show(
+        $window,
+        'Uninstall OpenTabletDisplay and restore only Sunshine settings still owned by the app? Sunshine, the virtual display driver, and your unrelated settings will be preserved.',
+        'Uninstall OpenTabletDisplay?', 'YesNo', 'Warning'
+    )
+    if ($answer -ne 'Yes') { return }
+    try {
+        $args = '-NoProfile -ExecutionPolicy Bypass -File "' + $uninstall + '"'
+        Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $args -WindowStyle Hidden | Out-Null
+        $window.Close()
+    } catch { Show-Error ('Unable to start uninstall: ' + $_.Exception.Message) }
 })
 $script:UI.OpenFolderButton.Add_Click({
     if (Test-Path -LiteralPath $script:InstallRoot) {
