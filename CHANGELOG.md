@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.2.0-rc.1 — Native Windows app and installation reliability (unreleased)
+
+- Added a Windows desktop control center with first-run setup, live component health, Android connection guidance, diagnostic reports and safe device actions.
+- Shipped a one-click GUI subsystem launcher, integrated installer, user Start Menu shortcut and local repair cache.
+- Corrected virtual driver detection by matching the exact ROOT\\MttVDD hardware ID, including ROOT\\DISPLAY instances created by NefCon.
+- Added Windows CI regression checks for clean installer logging, PnP identity and WPF interface loading.
+- Release candidate: full USB hardware validation and publisher signing are still required before stable deployment.
+
 ## 3.1.1 — OpenTabletDisplay public release polish (2026-10-25)
 
 - Public project name changed from **FSDL** to **OpenTabletDisplay** so the repository immediately communicates its purpose: use an Android tablet or phone as a real second Windows monitor over USB.
