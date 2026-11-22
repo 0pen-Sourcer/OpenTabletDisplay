@@ -23,7 +23,7 @@ if (-not (Test-Path $payloadProbes)) { throw ('Release payload is incomplete: ' 
 
 New-Item -ItemType Directory -Force -Path $script:InstallRoot | Out-Null
 $logPath = Join-Path $script:InstallRoot 'logs\install.log'
-Set-Content -LiteralPath $logPath -Value ('OpenTabletDisplay ' + $script:FSDLVersion + ' install ' + (Get-Date -Format o)) -Encoding UTF8
+Initialize-FSDLInstallLog $logPath
 
 $oldState = $null
 if (Test-Path $script:InstallStatePath) {
