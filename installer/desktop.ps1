@@ -1,4 +1,4 @@
-param([switch]$SmokeTest)
+﻿param([switch]$SmokeTest)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
@@ -477,7 +477,16 @@ function Get-Health {
     $statePath = Join-Path $script:InstallRoot 'install-state.json'
     $installed = (Test-Path -LiteralPath $statePath) -and (Test-Path -LiteralPath $script:RuntimeExe)
     $svc = Get-Service -Name 'SunshineService' -ErrorAction SilentlyContinue
-    $sunshine = if (-not $svc) { 'Not installed' } elseif ($svc.Status -eq 'Running') { 'Running' } else { [string]$svc.Status }
+    $sunExe = Get-FSDLSunshineExe
+    $sunshine = if ($svc -and $svc.Status -eq 'Running') {
+        'Running'
+    } elseif ($svc) {
+        'Service stopped'
+    } elseif ($sunExe) {
+        'Service missing'
+    } else {
+        'Not detected'
+    }
     $vdd = @(Get-FSDLVddDevices)
     $driver = if ($vdd.Count -eq 0) { 'Not detected' } elseif (@($vdd | Where-Object { $_.Status -eq 'OK' }).Count -gt 0) { 'Detected' } else { 'Needs attention' }
     $sessionPath = Join-Path $script:InstallRoot 'runtime\state.json'
@@ -500,8 +509,9 @@ function Get-Health {
 function Refresh-Health {
     try {
         $h = Get-Health
-        $script:UI.AppStatus.Text = if ($h.Installed) { 'Installed' } else { 'Not installed' }
-        $script:UI.AppDetail.Text = if ($h.Installed) { 'Integration and agent files ready' } else { 'Complete the one-time setup' }
+        $runtimePresent = Test-Path -LiteralPath $script:RuntimeExe
+        $script:UI.AppStatus.Text = if ($h.Installed) { 'Installed' } elseif ($runtimePresent) { 'Setup incomplete' } else { 'Not installed' }
+        $script:UI.AppDetail.Text = if ($h.Installed) { 'Integration and agent files ready' } elseif ($runtimePresent) { 'The previous setup did not finish' } else { 'Complete the one-time setup' }
         $script:UI.SunStatus.Text = $h.Sunshine
         $script:UI.DriverStatus.Text = $h.Driver
         $script:UI.DeviceStatus.Text = $h.Device
