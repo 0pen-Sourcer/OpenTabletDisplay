@@ -200,7 +200,11 @@ function Test-FSDLVddDevice($Device) {
 }
 
 function Get-FSDLVddDevices {
-    return @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { Test-FSDLVddDevice $_ })
+    # Only root-enumerated display adapters need an expensive HardwareIds query.
+    $candidates = @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object {
+        [string]$_.InstanceId -match '(?i)^ROOT\\(DISPLAY|MTTVDD)(\\|$)'
+    })
+    return @($candidates | Where-Object { Test-FSDLVddDevice $_ })
 }
 
 function Wait-FSDLVdd([int]$Seconds = 30) {
