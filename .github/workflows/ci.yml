@@ -83,7 +83,7 @@ jobs:
           if (-not $archive) { throw 'Native Windows archive was not produced.' }
           $testRoot = Join-Path $env:RUNNER_TEMP 'otd-release-inspection'
           Expand-Archive -LiteralPath $archive.FullName -DestinationPath $testRoot -Force
-          foreach ($required in @('OpenTabletDisplay.exe','assets\OpenTabletDisplay.ico','assets\OpenTabletDisplay.png','installer\install.ps1','payload\FSDL.exe','payload\probes\fsdl-probe-android-arm64','SHA256SUMS.txt')) {
+          foreach ($required in @('OpenTabletDisplay.exe','assets\OpenTabletDisplay.ico','assets\OpenTabletDisplay.png','installer\install.ps1', 'payload\FSDL.exe','payload\FSDL-Agent.exe','payload\probes\fsdl-probe-android-arm64','SHA256SUMS.txt')) {
             if (-not (Test-Path -LiteralPath (Join-Path $testRoot $required))) { throw ('Release package missing: ' + $required) }
           }
           if (Test-Path (Join-Path $testRoot 'installer\desktop.ps1')) { throw 'Legacy PowerShell-hosted UI must never ship in native release.' }
