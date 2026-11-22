@@ -24,8 +24,6 @@ function Test-FSDLAdmin {
 function Invoke-FSDLElevatedSelf([string]$ScriptPath, [string[]]$ForwardArgs) {
     $parts = New-Object System.Collections.Generic.List[string]
     $parts.Add('-NoProfile')
-    $parts.Add('-ExecutionPolicy')
-    $parts.Add('Bypass')
     $parts.Add('-File')
     $parts.Add(('"' + $ScriptPath + '"'))
     foreach ($arg in $ForwardArgs) {
