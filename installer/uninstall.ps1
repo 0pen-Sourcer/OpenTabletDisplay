@@ -81,6 +81,19 @@ if ($RemoveDependencies -and $state) {
 }
 
 Remove-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\FSDL' -Recurse -Force -ErrorAction SilentlyContinue
+# Remove only our Start Menu entry, and only when it still points at our app.
+try {
+    $link = Join-Path ([Environment]::GetFolderPath('Programs')) 'OpenTabletDisplay.lnk'
+    if (Test-Path -LiteralPath $link) {
+        $wsh = New-Object -ComObject WScript.Shell
+        $target = [string]$wsh.CreateShortcut($link).TargetPath
+        if ($target -ieq (Join-Path $script:InstallRoot 'OpenTabletDisplay.exe')) {
+            Remove-Item -LiteralPath $link -Force
+        }
+    }
+} catch {
+    Write-FSDLLog ('Start Menu cleanup skipped: ' + $_.Exception.Message) $logPath
+}
 
 # Defer deleting the directory that contains this running script.
 $rootEscaped = $script:InstallRoot.Replace('"','""')
