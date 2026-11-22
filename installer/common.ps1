@@ -228,17 +228,22 @@ function Get-FSDLDriverPublishedNames {
 }
 
 function Get-FSDLSunshineLogCandidates {
+    # Never recursively crawl the user's entire TEMP or C:\Windows\Temp.
+    # These trees can contain thousands of unrelated application logs and
+    # create an apparently endless setup loop when retried.
     $paths = New-Object System.Collections.Generic.List[string]
     $roots = @(
-        (Join-Path $env:ProgramFiles 'Sunshine'),
-        (Join-Path $env:ProgramData 'Sunshine'),
-        $env:TEMP,
-        (Join-Path $env:SystemRoot 'Temp')
+        [pscustomobject]@{ Path = (Join-Path $env:ProgramFiles 'Sunshine'); Recurse = $true },
+        [pscustomobject]@{ Path = (Join-Path $env:ProgramData 'Sunshine'); Recurse = $true },
+        [pscustomobject]@{ Path = $env:TEMP; Recurse = $false },
+        [pscustomobject]@{ Path = (Join-Path $env:SystemRoot 'Temp'); Recurse = $false }
     )
-    foreach ($root in $roots) {
-        if (-not $root -or -not (Test-Path $root)) { continue }
-        Get-ChildItem -LiteralPath $root -Filter '*.log' -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-            if ($_.Name -match '(?i)sunshine') { $paths.Add($_.FullName) }
+    foreach ($scope in $roots) {
+        if (-not $scope.Path -or -not (Test-Path -LiteralPath $scope.Path)) { continue }
+        $args = @{ LiteralPath = $scope.Path; Filter = '*sunshine*.log'; File = $true; ErrorAction = 'SilentlyContinue' }
+        if ($scope.Recurse) { $args.Recurse = $true }
+        foreach ($log in @(Get-ChildItem @args | Sort-Object LastWriteTime -Descending | Select-Object -First 12)) {
+            if ($log -and $log.FullName) { $paths.Add($log.FullName) }
         }
     }
     return @($paths | Sort-Object -Unique)
@@ -252,7 +257,7 @@ function Find-FSDLSunshineVirtualDisplayId([string]$ExplicitId) {
 
     $records = @{}
     foreach ($log in (Get-FSDLSunshineLogCandidates)) {
-        try { $text = Get-Content -LiteralPath $log -Raw -ErrorAction Stop } catch { continue }
+        try { $text = (Get-Content -LiteralPath $log -Tail 4000 -ErrorAction Stop | Out-String) } catch { continue }
         $matches = [regex]::Matches($text, '"device_id"\s*:\s*"(?<id>\{[0-9a-fA-F-]{36}\})"(?s:.{0,700}?)"friendly_name"\s*:\s*"(?<name>[^"]*)"')
         foreach ($m in $matches) {
             $id = $m.Groups['id'].Value
