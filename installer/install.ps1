@@ -299,9 +299,36 @@ try {
     Restart-FSDLSunshine
 
     # Download and verify USB runtime dependencies now, not on the first daily plug-in.
+    # Capture the helper's stdout/stderr instead of hiding its actual failure
+    # behind "dependency preparation failed". Antivirus quarantine, network
+    # errors and integrity failures must remain distinguishable.
     $installedExe = Join-Path $script:InstallRoot 'FSDL.exe'
-    & $installedExe prepare
-    if ($LASTEXITCODE -ne 0) { throw 'FSDL dependency preparation failed.' }
+    $depOut = Join-Path $script:InstallRoot 'logs\prepare-stdout.txt'
+    $depErr = Join-Path $script:InstallRoot 'logs\prepare-stderr.txt'
+    Remove-Item -LiteralPath $depOut,$depErr -Force -ErrorAction SilentlyContinue
+    Write-FSDLLog 'Preparing verified Android Platform-Tools and gnirehtet dependencies.' $logPath
+    try {
+        $prepareProc = Start-Process -FilePath $installedExe -ArgumentList 'prepare' -PassThru -WindowStyle Hidden -RedirectStandardOutput $depOut -RedirectStandardError $depErr -ErrorAction Stop
+    } catch {
+        throw ('Unable to launch FSDL dependency helper (check antivirus protection events, if any): ' + $_.Exception.Message)
+    }
+    $prepareDone = $prepareProc.WaitForExit(540000)
+    if (-not $prepareDone) {
+        try { $prepareProc.Kill() } catch {}
+        throw 'USB dependency helper exceeded the nine-minute setup deadline. Check prepare-stdout.txt and prepare-stderr.txt in local logs.'
+    }
+    $prepareProc.Refresh()
+    foreach ($entry in @(@('stdout',$depOut),@('stderr',$depErr))) {
+        $label = $entry[0]
+        $p = $entry[1]
+        if (-not (Test-Path -LiteralPath $p)) { continue }
+        foreach ($line in @(Get-Content -LiteralPath $p -Tail 80 -ErrorAction SilentlyContinue)) {
+            if ($line) { Write-FSDLLog ('USB ' + $label + ': ' + $line) $logPath }
+        }
+    }
+    if ($prepareProc.ExitCode -ne 0) {
+        throw ('USB dependency helper failed with exit code ' + $prepareProc.ExitCode + '. See logs\prepare-stderr.txt for the specific error.')
+    }
 
     # Preserve a complete local repair package so Start Menu setup works even
     # after users delete the Downloads ZIP. Never delete arbitrary user files.
