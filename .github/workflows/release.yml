@@ -59,6 +59,14 @@ jobs:
                 throw ('Signature verification failed: ' + $relative)
               }
             }
+            # PowerShell install/uninstall scripts must carry publisher signatures
+            # as well; no -ExecutionPolicy Bypass is used by the product.
+            foreach ($scriptFile in @(Get-ChildItem (Join-Path $package.FullName 'installer') -Filter '*.ps1' -File)) {
+              $signed = Set-AuthenticodeSignature -LiteralPath $scriptFile.FullName -Certificate $cert -TimestampServer 'http://timestamp.digicert.com' -HashAlgorithm SHA256
+              if ($signed.Status -ne 'Valid' -or $signed.SignerCertificate.Thumbprint -ne $env:OTD_SIGNER_THUMBPRINT) {
+                throw ('Installer script signature verification failed: ' + $scriptFile.Name + ' (' + $signed.Status + ')')
+              }
+            }
             $manifest = Join-Path $package.FullName 'SHA256SUMS.txt'
             $rows = Get-ChildItem $package.FullName -File -Recurse | Where-Object { $_.FullName -ne $manifest } | Sort-Object FullName | ForEach-Object {
               (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' +
