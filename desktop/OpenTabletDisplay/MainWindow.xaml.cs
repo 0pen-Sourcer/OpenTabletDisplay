@@ -486,29 +486,29 @@ public partial class MainWindow : Window
         else Alert("The app has not yet been installed.");
     }
 
-    private async void UninstallButton_Click(object sender, RoutedEventArgs e)
+    private void UninstallButton_Click(object sender, RoutedEventArgs e)
     {
         if (_busy || _installing) return;
         var script = AppPaths.UninstallScript;
-        if (script is null) { Alert("No installed integration found."); return; }
-        if (MessageBox.Show(this, "Remove OpenTabletDisplay integration and restore app-owned Sunshine settings? " +
-                "Other Sunshine installations and existing display drivers are kept by default.",
+        if (script is null) { Alert("No installed integration was found."); return; }
+        if (MessageBox.Show(this,
+                "This will remove OpenTabletDisplay and restore only app-owned Sunshine settings. Existing Sunshine and virtual-display drivers will remain. After UAC approval the window will close so Windows can remove the application's files.\n\nContinue?",
                 "Uninstall OpenTabletDisplay", MessageBoxButton.YesNo, MessageBoxImage.Warning)
             != MessageBoxResult.Yes) return;
         try
         {
-            _busy = true;
-            UpdateActions();
-            Footer("Starting administrator-approved uninstall…");
+            // The GUI must exit before deleting its own executable. Do not run
+            // hidden cmd.exe cleanup or falsely report success before setup exits.
             using var process = SafeCommands.StartElevatedInstaller(script);
-            await process.WaitForExitAsync();
-            Footer("Uninstall process completed with exit code " + process.ExitCode + ".");
-            await RefreshAsync();
-            if (process.ExitCode != 0) Alert("Uninstall was not completed. Review the local uninstall log.");
-            else Alert("Uninstall completed.", MessageBoxImage.Information);
+            _timer.Stop();
+            _closing = true;
+            Application.Current.Shutdown();
         }
-        catch (Exception ex) { Alert("Unable to complete uninstall: " + ex.Message); }
-        finally { _busy = false; UpdateActions(); }
+        catch (Exception ex)
+        {
+            Alert("Could not start uninstall: " + ex.Message +
+                  "\nNo security restrictions were changed.");
+        }
     }
 
     private void Alert(string text, MessageBoxImage icon = MessageBoxImage.Warning) =>
