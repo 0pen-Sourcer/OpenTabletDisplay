@@ -208,7 +208,9 @@ try {
         Write-FSDLLog 'Reusing an existing healthy Virtual Display Driver installation.' $logPath
     }
 
+    Write-FSDLLog 'Restarting Sunshine to enumerate available displays.' $logPath
     Restart-FSDLSunshine
+    Write-FSDLLog 'Sunshine is healthy; resolving the virtual display device ID.' $logPath
 
     # Sunshine emits stable device IDs for all displays. Select the VDD by that ID,
     # never by DISPLAY1/DISPLAY2 numbering or DXGI index. For an in-place update
@@ -222,10 +224,13 @@ try {
 
     $vddDeviceId = $null
     $lastDiscoveryError = $null
-    for ($i = 0; $i -lt 10 -and -not $vddDeviceId; $i++) {
-        try { $vddDeviceId = Find-FSDLSunshineVirtualDisplayId $OutputDeviceId } catch {
+    for ($i = 0; $i -lt 4 -and -not $vddDeviceId; $i++) {
+        try {
+            $vddDeviceId = Find-FSDLSunshineVirtualDisplayId $OutputDeviceId
+        } catch {
             $lastDiscoveryError = $_
-            Start-Sleep -Seconds 1
+            Write-FSDLLog ('Virtual display discovery attempt ' + ($i + 1) + '/4: ' + $_.Exception.Message) $logPath
+            if ($i -lt 3) { Start-Sleep -Seconds 2 }
         }
     }
     if (-not $vddDeviceId -and $legacyScoreBefore -ge 6 -and $existingOutput.Present -and ([string]$existingOutput.Value -match '^\{[0-9a-fA-F-]{36}\}$')) {
