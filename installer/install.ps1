@@ -20,6 +20,11 @@ $payloadExe = Join-Path $packageRoot 'payload\FSDL.exe'
 $payloadProbes = Join-Path $packageRoot 'payload\probes'
 if (-not (Test-Path $payloadExe)) { throw ('Release payload is incomplete: ' + $payloadExe) }
 if (-not (Test-Path $payloadProbes)) { throw ('Release payload is incomplete: ' + $payloadProbes) }
+$desktopExe = Join-Path $packageRoot 'OpenTabletDisplay.exe'
+$desktopScript = Join-Path $PSScriptRoot 'desktop.ps1'
+if (-not (Test-Path $desktopExe) -or -not (Test-Path $desktopScript)) {
+    throw 'OpenTabletDisplay desktop app payload is incomplete. Use the full packaged release ZIP, not GitHub Source code ZIP.'
+}
 
 New-Item -ItemType Directory -Force -Path $script:InstallRoot | Out-Null
 $logPath = Join-Path $script:InstallRoot 'logs\install.log'
@@ -287,6 +292,42 @@ try {
     & $installedExe prepare
     if ($LASTEXITCODE -ne 0) { throw 'FSDL dependency preparation failed.' }
 
+    # Preserve a complete local repair package so Start Menu setup works even
+    # after users delete the Downloads ZIP. Never delete arbitrary user files.
+    $persistentPackage = Join-Path $script:InstallRoot 'package'
+    $sourcePath = [IO.Path]::GetFullPath($packageRoot).TrimEnd('\')
+    $targetPath = [IO.Path]::GetFullPath($persistentPackage).TrimEnd('\')
+    if ($sourcePath -ine $targetPath) {
+        $pendingPackage = Join-Path $script:InstallRoot 'package.pending'
+        $previousPackage = Join-Path $script:InstallRoot 'package.previous'
+        Remove-Item -LiteralPath $pendingPackage -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path (Join-Path $pendingPackage 'installer'), (Join-Path $pendingPackage 'payload\probes') | Out-Null
+        Copy-Item -Path (Join-Path $PSScriptRoot '*.ps1') -Destination (Join-Path $pendingPackage 'installer') -Force
+        Copy-Item -LiteralPath $payloadExe -Destination (Join-Path $pendingPackage 'payload\FSDL.exe') -Force
+        Copy-Item -Path (Join-Path $payloadProbes '*') -Destination (Join-Path $pendingPackage 'payload\probes') -Force
+        Copy-Item -LiteralPath $desktopExe -Destination (Join-Path $pendingPackage 'OpenTabletDisplay.exe') -Force
+        foreach ($name in @('install.cmd','status.cmd','reset-device.cmd','uninstall.cmd')) {
+            $source = Join-Path $packageRoot $name
+            if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $pendingPackage $name) -Force }
+        }
+        Remove-Item -LiteralPath $previousPackage -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath $persistentPackage) {
+            Move-Item -LiteralPath $persistentPackage -Destination $previousPackage
+        }
+        try {
+            Move-Item -LiteralPath $pendingPackage -Destination $persistentPackage
+        } catch {
+            if (Test-Path -LiteralPath $previousPackage) {
+                Move-Item -LiteralPath $previousPackage -Destination $persistentPackage -ErrorAction SilentlyContinue
+            }
+            throw
+        }
+        Remove-Item -LiteralPath $previousPackage -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Copy-Item -LiteralPath $desktopExe -Destination (Join-Path $script:InstallRoot 'OpenTabletDisplay.exe') -Force
+    Copy-Item -LiteralPath $desktopScript -Destination (Join-Path $script:InstallRoot 'desktop.ps1') -Force
+    Write-FSDLLog 'Saved the standalone desktop app and an offline repair package.' $logPath
+
     $state = [ordered]@{
         version = $script:FSDLVersion
         installed_at = (Get-Date -Format o)
@@ -329,6 +370,18 @@ try {
     New-ItemProperty -Path $uninstallKey -Name NoModify -Value 1 -PropertyType DWord -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name NoRepair -Value 1 -PropertyType DWord -Force | Out-Null
 
+    # Start Menu shortcut is scoped to the current Windows user only.
+    try {
+        $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'OpenTabletDisplay.lnk'
+        $wsh = New-Object -ComObject WScript.Shell
+        $shortcut = $wsh.CreateShortcut($menu)
+        $shortcut.TargetPath = Join-Path $script:InstallRoot 'OpenTabletDisplay.exe'
+        $shortcut.WorkingDirectory = $script:InstallRoot
+        $shortcut.Description = 'Use an Android tablet as a wired second Windows screen'
+        $shortcut.Save()
+    } catch {
+        Write-FSDLLog ('Start Menu shortcut could not be created: ' + $_.Exception.Message) $logPath
+    }
     Write-FSDLLog 'Install/update completed successfully.' $logPath
     Write-Host ''
     Write-Host 'OpenTabletDisplay is installed.' -ForegroundColor Green
