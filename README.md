@@ -87,17 +87,16 @@ The stream packets themselves travel through USB, but stable **v3.1.1** still us
 
 ## Install
 
-1. Download and extract the latest [Windows release ZIP](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest). **Do not use GitHub's “Source code” ZIP**: it omits the built runtime and launcher.
-2. Double-click **`OpenTabletDisplay.exe`** to open the Windows control center, then choose **Install / repair**. Administrator approval is needed only to install system components. The legacy `install.cmd` remains available for diagnostics and scripted setup.
-3. The app shows setup progress, driver health, device guidance and logs; after installation it is also available from the Start Menu.
-3. Install official **Moonlight Game Streaming** on Android.
-4. Enable **Developer options → USB debugging**.
-5. Connect a data-capable USB cable and approve the PC's RSA debugging prompt.
-6. Keep Android's normal **USB tethering OFF**; OpenTabletDisplay uses its own ADB/gnirehtet path.
-7. Approve gnirehtet's one-time Android VPN/Connection request.
-8. Pair Moonlight with the host address shown by OpenTabletDisplay, then launch **Desktop**.
+> **Development preview:** The 3.3 native Windows overhaul is still in draft PR #10, not the public stable release. The current public 3.1.1 has known installer defects. Treat all unsigned previews as test-only and keep antivirus protection enabled.
 
-The first Android device that completes the live TCP + UDP checks becomes the enrolled display until you run `reset-device.cmd`.
+1. Download the complete packaged Windows ZIP, not GitHub's automatic Source code ZIP, and extract it.
+2. Open **OpenTabletDisplay.exe**. The desktop UI is a compiled, self-contained .NET 10 WPF application—not a PowerShell-hosted window.
+3. Choose **Install / repair**. Windows UAC appears only for installation and removal of system components. Do not bypass antivirus alerts or add exclusions.
+4. Follow the one-time Android USB debugging authorization. Keep Android USB tethering OFF, and approve gnirehtet's explicit VPN prompt if shown.
+5. Open **My devices**, scan for authorized Android devices, and explicitly enroll the intended device. Multiple devices are not selected automatically.
+6. Install official Moonlight on Android, pair with Sunshine using the host address shown in the app, and launch Desktop.
+
+The desktop app shows installer progress, dependency errors and local diagnostics. It blocks connection controls until Windows setup completes and preserves existing Sunshine settings where possible.
 
 ### Recommended Moonlight settings
 
@@ -162,13 +161,13 @@ Windows:
 ./scripts/build-release.ps1
 ```
 
-Linux/macOS with Go installed:
+Linux/macOS with Go installed (cross-build tests only; not a Windows app release):
 
 ```bash
 ./scripts/build-release.sh
 ```
 
-The release build compiles the Windows x64 bridge plus the native Android ARM64 transport probe, runs tests/vet/race/self-tests, and packages the Windows release with checksums. GitHub Actions also parses every PowerShell installer script on a Windows runner.
+The Windows build generates the app icon, compiles the Go transport and Android probe, publishes the self-contained .NET 10 WPF desktop EXE, and verifies package SHA-256 checksums. The Linux/macOS script only tests and cross-compiles the transport; it cannot publish a Windows desktop ZIP. Windows CI launches the actual native WPF smoke test. Public release automation refuses unsigned executables or missing physical hardware QA signoff.
 
 The project follows a strict hardware boundary: automation proves everything it realistically can, while claims about the actual USB/display path are made only after real-device validation.
 
