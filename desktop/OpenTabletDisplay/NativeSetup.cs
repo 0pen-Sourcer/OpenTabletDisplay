@@ -231,18 +231,22 @@ internal static class NativeSetup
             foreach(string entry in package.Entries)package.RequireVerified(entry);
             log.Write("Full release verified. Same-account administrator identity verified.");
             var old=LoadState();
-            // Keep user enrollment and runtime directories; never reset them on upgrade.
-            await StopPriorAgentAsync(log);
-            CopyRuntime(package,log);
-            // Preflight all USB binaries BEFORE installing Sunshine, touching
-            // drivers, or editing monitor settings. A pending AVG verdict must
-            // fail early, not after a long system setup.
+            // Check a verified helper copy in the same application directory
+            // BEFORE stopping the user's existing background agent. The helper
+            // locates its runtime files relative to its own directory.
+            string preflight=Path.Combine(AppPaths.Root,"FSDL-preflight.exe");
+            if(File.Exists(preflight))File.Delete(preflight);
+            File.Copy(package.PathOf("payload/FSDL.exe"),preflight);
+            log.Write("Checking the new USB transport before replacing existing components.");
+            // Preflight all USB binaries BEFORE changing Sunshine, drivers, or
+            // overwriting the previous installed transport. A blocked preview
+            // must never disable an existing working installation.
             log.Write("Preparing Android Platform Tools and verified gnirehtet runtime.");
             string outPath=Path.Combine(AppPaths.LogsDirectory,"prepare-stdout.txt"),
                 errPath=Path.Combine(AppPaths.LogsDirectory,"prepare-stderr.txt");
             try {
                 // The untrusted/blocked executable must fail visibly, not disappear.
-                Task<CommandOutcome> preparation=SafeCommands.ExecuteAsync(AppPaths.RuntimeExe,
+                Task<CommandOutcome> preparation=SafeCommands.ExecuteAsync(preflight,
                     new[]{"prepare"},TimeSpan.FromMinutes(7));
                 while(!preparation.IsCompleted)
                 {
@@ -263,6 +267,9 @@ internal static class NativeSetup
                     "USB dependency preparation could not complete. Check AVG/Defender verdict and prepare-stderr.txt. "+
                     ex.Message,ex);
             }
+            if(File.Exists(preflight))File.Delete(preflight);
+            await StopPriorAgentAsync(log);
+            CopyRuntime(package,log);
             bool sunAlready=SunshineSetup.HasService();
             if(!sunAlready)
             {
@@ -387,7 +394,14 @@ internal static class NativeSetup
             try {log?.Write("Existing Sunshine and display drivers were preserved. No antivirus or trust settings were changed.");}catch{}
             return Failed;
         }
-        finally {exclusive?.Dispose();}
+        finally
+        {
+            try {
+                string temp=Path.Combine(AppPaths.Root,"FSDL-preflight.exe");
+                if(File.Exists(temp))File.Delete(temp);
+            } catch(IOException) { /* AVG may still be holding its analysis handle. */ }
+            exclusive?.Dispose();
+        }
     }
 
     private static void AssertSafeInstallDirectories()
