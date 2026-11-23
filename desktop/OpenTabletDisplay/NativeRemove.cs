@@ -75,7 +75,7 @@ internal static class NativeRemove
                 var currentLines=File.ReadAllLines(path);
                 var restored=SunshineConfiguration.RestoreChangedOnly(currentLines,state.SunshineChanges);
                 SunshineConfiguration.WriteAtomic(path,restored);
-                if (!removeSunshine)
+                if (!removeSunshine && !removeDriver)
                 {
                     // Preserve the deliberate stopped state. Uninstalling the
                     // app should NOT unexpectedly start Sunshine.
