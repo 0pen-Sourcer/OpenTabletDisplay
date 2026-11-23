@@ -809,7 +809,7 @@ public partial class MainWindow : Window
         }
         string selected = "• OpenTabletDisplay app, USB agent, local files and app-owned settings";
         if (sunshine) selected += "\n• Owned Sunshine installation (Moonlight streaming will stop)";
-        if (driver) selected += "\n• Owned virtual display device (driver package may remain)";
+        if (driver) selected += "\n• Owned virtual display device (active Moonlight streams will end; driver package may remain)";
         string kept = (sunshine ? "" : "\nSunshine will remain installed.") +
                       (driver ? "" : "\nThe virtual-display driver will remain installed.");
         if (MessageBox.Show(this,
