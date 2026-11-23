@@ -185,10 +185,10 @@ internal static class WindowsTrust
             var data=new TrustData {
                 cbStruct=(uint)Marshal.SizeOf<TrustData>(),
                 dwUIChoice=2, // no UI
-                fdwRevocationChecks=1,
+                fdwRevocationChecks=1, // check the entire certificate chain
                 dwUnionChoice=1, // file
                 pFile=ptr,
-                dwProvFlags=0x1000 // cache-only revocation; do not weaken trust chain
+                dwProvFlags=0x40 // WTD_REVOCATION_CHECK_CHAIN; allow fresh online revocation data
             };
             Guid g=ActionVerify;
             int status=WinVerifyTrust(IntPtr.Zero,ref g,ref data);
