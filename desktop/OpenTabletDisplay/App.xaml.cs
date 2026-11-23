@@ -23,6 +23,13 @@ public partial class App : Application
             Shutdown(result);
             return;
         }
+        if (e.Args.Length == 2 && SunshineServiceControl.IsAllowed(e.Args[0]))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            int result = await SunshineServiceControl.RunElevatedAsync(e.Args[0], e.Args[1]);
+            Shutdown(result);
+            return;
+        }
         if (e.Args.Contains("--selftest", StringComparer.OrdinalIgnoreCase))
         {
             try
@@ -35,6 +42,13 @@ public partial class App : Application
                 if (sanitized.Contains("veryprivate") || sanitized.Contains("192.168.1.1"))
                     throw new InvalidOperationException("Diagnostic redaction regression.");
                 NativeSetup.SelfTest();
+                if (!SunshineServiceControl.IsAllowed(SunshineServiceControl.Start) ||
+                    !SunshineServiceControl.IsAllowed(SunshineServiceControl.Stop) ||
+                    !SunshineServiceControl.IsAllowed(SunshineServiceControl.Automatic) ||
+                    !SunshineServiceControl.IsAllowed(SunshineServiceControl.Manual) ||
+                    SunshineServiceControl.IsAllowed("--sunshine-delete") ||
+                    SunshineServiceControl.IsAllowed("--native-remove"))
+                    throw new InvalidOperationException("Sunshine service command allowlist regression.");
                 // Offline package-integrity and policy-sensitive setup paths
                 // are checked by CI; never run privileged installation here.
                 var window = new MainWindow();
