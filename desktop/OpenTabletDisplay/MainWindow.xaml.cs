@@ -122,6 +122,8 @@ public partial class MainWindow : Window
     private void NavDiagnostics_Click(object sender, RoutedEventArgs e) => ShowPage("Diagnostics");
     private void NavSettings_Click(object sender, RoutedEventArgs e) => ShowPage("Settings");
     private void GoSetup_Click(object sender, RoutedEventArgs e) => ShowPage("Setup");
+    private void HeroPrimary_Click(object sender, RoutedEventArgs e) =>
+        ShowPage(_snapshot is { Installed: true, RuntimePresent: true } ? "Devices" : "Setup");
     private void GoDiagnostics_Click(object sender, RoutedEventArgs e) => ShowPage("Diagnostics");
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
 
@@ -145,21 +147,47 @@ public partial class MainWindow : Window
                 : snapshot.RuntimePresent ? "Setup incomplete" : "Not installed";
             AppDetailText.Text = snapshot.Detail;
             SunshineStatusText.Text = snapshot.Sunshine;
-            SunshineServiceDetail.Text = "Service: " + snapshot.Sunshine;
+            SunshineReachabilityText.Text = snapshot.Sunshine switch
+            {
+                "Running" when snapshot.SunshineListening => "Streaming endpoint responding · Moonlight can connect",
+                "Running" => "Service running · waiting for the streaming endpoint",
+                "Service stopped" => "Streaming is off · select Start when needed",
+                _ => "Sunshine is unavailable · see Diagnostics"
+            };
+            SunshineServiceDetail.Text = "Service: " + snapshot.Sunshine +
+                (snapshot.Sunshine == "Running" ? snapshot.SunshineListening
+                    ? " · Endpoint responding" : " · Endpoint not responding" : "");
             SunshineStartupText.Text = "Current startup: " + _sunshineStartupMode;
             DriverStatusText.Text = snapshot.Driver;
             AndroidStatusText.Text = snapshot.Enrolled ? "USB device enrolled" : "No USB device enrolled";
             HostAddressText.Text = string.IsNullOrEmpty(snapshot.Host) ? "Not yet connected" : snapshot.Host;
 
-            var ready = snapshot.WindowsReady && snapshot.RuntimePresent;
+            bool installed = snapshot.Installed && snapshot.RuntimePresent;
+            bool windowsReady = installed && snapshot.Driver == "Ready" &&
+                snapshot.Sunshine == "Running" && snapshot.SunshineListening;
+            HeroPrimaryButton.Content = installed ? "Manage tablet connection" : "Set up my display";
+            SetupStepHeading.Text = installed ? "Windows setup completed" : "Install OpenTabletDisplay";
+            SetupStepDescription.Text = installed
+                ? "Sunshine and the virtual-display driver are installed. Do not reinstall to reconnect a tablet."
+                : "Install and configure Sunshine and the display driver once. Windows will ask for administrator approval.";
+            InstallButton.Content = installed ? "Repair Windows installation" : "Install";
+            InstallDetailText.Text = installed && !_installing
+                ? "Installation is complete. Use My devices to connect your tablet."
+                : InstallDetailText.Text;
             HeroHeading.Text = _installing ? "Preparing your display."
-                : ready ? "Ready for your Android screen." : "Make room for more.";
-            HeroDescription.Text = _installing ? "Windows setup is running with explicit administrator approval."
-                : ready ? "Connect your authorized Android device and open Desktop in Moonlight."
-                : snapshot.Detail;
+                : !installed ? "Make room for more."
+                : snapshot.Sunshine == "Service stopped" ? "Sunshine is switched off."
+                : windowsReady ? "Ready for your Android screen."
+                : "Finishing Sunshine startup.";
+            HeroDescription.Text = _installing ? "Installing Windows components."
+                : !installed ? snapshot.Detail
+                : snapshot.Sunshine == "Service stopped" ? "Select Start Sunshine to resume streaming; no reinstall is necessary."
+                : !windowsReady ? snapshot.Detail
+                : "Open My devices to connect your tablet. Keep your Moonlight pairing.";
             SidebarStateText.Text = _installing ? "Installation in progress"
-                : ready ? "Windows components ready" : snapshot.Installed ? "Needs attention" : "Setup required";
-            SidebarStateDot.Fill = ready && !_installing ? new SolidColorBrush(Color.FromRgb(69, 208, 154))
+                : windowsReady ? "Windows ready" : installed ? "Streaming needs attention" : "Setup required";
+            SidebarStateDot.Fill = windowsReady && !_installing
+                ? new SolidColorBrush(Color.FromRgb(69, 208, 154))
                 : new SolidColorBrush(Color.FromRgb(243, 185, 100));
             UpdateActions();
 
