@@ -218,14 +218,18 @@ internal static class NativeSetup
             if(!Environment.Is64BitOperatingSystem)throw new PlatformNotSupportedException("64-bit Windows is required.");
             string root=NativePackage.Discover()??throw new FileNotFoundException(
                 "The complete extracted release is missing. Use the packaged ZIP, not GitHub's Source ZIP.");
-            var package=new NativePackage(root);
-            foreach(string entry in package.Entries)package.RequireVerified(entry);
+            // The elevated process must not follow user-created junctions to
+            // unrelated privileged directories when writing app-owned files.
+            AssertSafeInstallDirectories();
             Directory.CreateDirectory(AppPaths.Root);
             exclusive=new FileStream(Path.Combine(AppPaths.Root,"install.lock"),FileMode.OpenOrCreate,
                 FileAccess.ReadWrite,FileShare.None);
             log=new SetupLog(AppPaths.InstallLog);
             log.Write("Starting native Windows installer. No PowerShell scripts will be executed.");
-            log.Write("Full packaged release verified. Same-account administrator identity verified.");
+            log.Write("Verifying every packaged file before installing dependencies.");
+            var package=new NativePackage(root);
+            foreach(string entry in package.Entries)package.RequireVerified(entry);
+            log.Write("Full release verified. Same-account administrator identity verified.");
             var old=LoadState();
             // Keep user enrollment and runtime directories; never reset them on upgrade.
             await StopPriorAgentAsync(log);
@@ -384,6 +388,29 @@ internal static class NativeSetup
             return Failed;
         }
         finally {exclusive?.Dispose();}
+    }
+
+    private static void AssertSafeInstallDirectories()
+    {
+        string baseDir=AppPaths.Root;
+        if(Directory.Exists(baseDir) &&
+            (File.GetAttributes(baseDir) & FileAttributes.ReparsePoint)!=0)
+            throw new InvalidOperationException("Application directory is a redirected junction. Setup refused.");
+        foreach(string name in new[]{"logs","runtime","cache","probes","backups",
+                    "package","package.pending","package.previous","assets"})
+        {
+            string path=Path.Combine(baseDir,name);
+            if(Directory.Exists(path) &&
+                (File.GetAttributes(path) & FileAttributes.ReparsePoint)!=0)
+                throw new InvalidOperationException("App-owned "+name+" folder is redirected. Setup refused.");
+        }
+        foreach(string name in new[]{"FSDL.exe","FSDL-Agent.exe","OpenTabletDisplay.exe"})
+        {
+            string path=Path.Combine(baseDir,name);
+            if(File.Exists(path) &&
+               (File.GetAttributes(path) & FileAttributes.ReparsePoint)!=0)
+                throw new InvalidOperationException("App-owned executable is a symbolic link. Setup refused.");
+        }
     }
 
     private static bool IsAuthorized(string expected)
