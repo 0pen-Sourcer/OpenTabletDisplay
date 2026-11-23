@@ -266,8 +266,7 @@ public partial class MainWindow : Window
                         "See Diagnostics; do not bypass script policy.";
                 string excerpt = raw.Contains("[stderr]", StringComparison.Ordinal)
                     ? raw.Split("[stderr]", StringSplitOptions.None).Last().Trim()
-                    : raw.Split('
-').LastOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim() ?? "";
+                    : raw.Split('\n').LastOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim() ?? "";
                 if (!string.IsNullOrEmpty(excerpt))
                     return excerpt.Length <= 550 ? excerpt : excerpt[^550..];
             }
