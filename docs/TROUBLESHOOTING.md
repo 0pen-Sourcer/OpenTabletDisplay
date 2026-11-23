@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start with `status.cmd`. It reports Sunshine, VDD, the background agent, Android enrollment, OpenTabletDisplay/FSDL runtime doctor output, and the recent agent log.
+Start with **OpenTabletDisplay → Diagnostics**. It reports setup logs, verified dependencies, the background agent, and Android connection issues. Log exports are local and optional.
 
 ## Android is invisible to FSDL
 
@@ -33,11 +33,11 @@ Approve it. This is the local VPN interface gnirehtet uses to route the selected
 
 ## Moonlight says the PC is offline after it worked before
 
-Run `status.cmd` and confirm the FSDL agent is Ready/Running. The agent automatically rebuilds the bridge after cable reconnects and after a host IPv4 change. Pairing normally does not need to be repeated.
+Use **Diagnostics** and confirm the FSDL agent is Ready/Running. The agent automatically rebuilds the bridge after cable reconnects and after a host IPv4 change. Pairing normally does not need to be repeated.
 
 ## Moonlight opens apps on the wrong monitor
 
-FSDL configures the VDD as session-primary while streaming and asks Sunshine to restore the original display layout on disconnect. If this fails, `status.cmd` plus Sunshine's current log are useful for a bug report.
+FSDL configures the VDD as session-primary while streaming and asks Sunshine to restore the original display layout on disconnect. If this fails, the app's Diagnostics report and Sunshine's current log are useful for a bug report.
 
 Also ensure **Use touchscreen as a trackpad** is OFF in Moonlight when you expect absolute/direct touch.
 
@@ -64,5 +64,5 @@ Do not substitute `DISPLAY1`, `DISPLAY2`, or a DXGI index.
 To also remove Sunshine/VDD **only if FSDL originally installed them**:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File installer\uninstall.ps1 -RemoveDependencies
+Do not run legacy PowerShell uninstallation commands. Use OpenTabletDisplay → Preferences & help → Uninstall.
 ```
