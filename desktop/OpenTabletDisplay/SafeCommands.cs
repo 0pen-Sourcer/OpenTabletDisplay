@@ -64,7 +64,8 @@ internal static class SafeCommands
 
     public static Process StartElevatedAction(string action)
     {
-        if (action is not ("--native-install" or "--native-remove"))
+        if (action is not ("--native-install" or "--native-remove") &&
+            !SunshineServiceControl.IsAllowed(action))
             throw new ArgumentException("Unsupported administrator action.");
         using var identity = WindowsIdentity.GetCurrent();
         string sid=identity.User?.Value??throw new InvalidOperationException(
