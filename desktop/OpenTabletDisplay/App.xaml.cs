@@ -14,12 +14,28 @@ public partial class App : Application
     {
         DispatcherUnhandledException += OnApplicationException;
         base.OnStartup(e);
-        if (e.Args.Length == 2 && e.Args[0] is "--native-install" or "--native-remove")
+        if (e.Args.Length == 2 && e.Args[0] == "--native-install")
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            int result = e.Args[0] == "--native-install"
-                ? await NativeSetup.InstallAsync(e.Args[1])
-                : await NativeRemove.RunAsync(e.Args[1]);
+            Shutdown(await NativeSetup.InstallAsync(e.Args[1]));
+            return;
+        }
+        if (e.Args.Length >= 2 && e.Args[0] == "--native-remove")
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            if (!RemovalSelection.TryParse(e.Args.Skip(2).ToArray(),
+                out bool removeSunshine, out bool removeDriver))
+            {
+                Shutdown(76);
+                return;
+            }
+            int result = await NativeRemove.RunAsync(e.Args[1], removeSunshine, removeDriver);
+            MessageBox.Show(
+                result == 0
+                    ? "OpenTabletDisplay removal completed. A Windows restart may finish deleting files that were open."
+                    : "Removal could not be completed. No unverified dependencies were removed. Review the uninstall log in your Windows temporary folder.",
+                "OpenTabletDisplay", MessageBoxButton.OK,
+                result == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
             Shutdown(result);
             return;
         }
@@ -49,6 +65,7 @@ public partial class App : Application
                 if (sanitized.Contains("veryprivate") || sanitized.Contains("192.168.1.1"))
                     throw new InvalidOperationException("Diagnostic redaction regression.");
                 NativeSetup.SelfTest();
+                RemovalSelection.SelfTest();
                 if (!SunshineDisplayPreference.IsAllowed(SunshineDisplayPreference.KeepPcPrimary) ||
                     !SunshineDisplayPreference.IsAllowed(SunshineDisplayPreference.MakeTabletPrimary) ||
                     SunshineDisplayPreference.IsAllowed("--sunshine-delete-display") ||
