@@ -1,6 +1,6 @@
 # OpenTabletDisplay
 
-> **Installer advisory (November 2026):** The published v3.1.1 ZIP has a confirmed fresh-install logging defect and can incorrectly reject a Virtual Display Driver registered under a ROOT\DISPLAY instance. Read [known issue #11](https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/11) before attempting a new install. A redesigned 3.2 release candidate is under [review in PR #10](https://github.com/0pen-Sourcer/OpenTabletDisplay/pull/10), but has **not yet passed end-to-end physical USB/tablet validation**. Do not treat its CI success as hardware compatibility confirmation.
+> **Development status (November 2026):** v3.1.1 remains the latest publicly released build and has known installer defects ([issue #11](https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/11)). A new native Windows setup is under review in [PR #15](https://github.com/0pen-Sourcer/OpenTabletDisplay/pull/15). It is **not a stable release** until Windows/Android hardware QA, code signing, and security review pass. Do not bypass antivirus warnings to install an unsigned preview.
 
 
 [![CI](https://github.com/0pen-Sourcer/OpenTabletDisplay/actions/workflows/ci.yml/badge.svg)](https://github.com/0pen-Sourcer/OpenTabletDisplay/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/0pen-Sourcer/OpenTabletDisplay)](https://github.com/0pen-Sourcer/OpenTabletDisplay/releases/latest) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)](docs/COMPATIBILITY.md)
@@ -90,7 +90,7 @@ The stream packets themselves travel through USB, but stable **v3.1.1** still us
 
 ## Install
 
-> **Development preview:** The 3.3 native Windows overhaul has been merged into source on `main`, but **has not been published as a stable release**. The latest public release remains v3.1.1, which has known installer defects. CI-tested source is not proof of secure hardware operation. Do not bypass antivirus warnings to use unsigned preview binaries; trusted code signing and physical device QA are required before a public 3.3 release.
+> **Development preview:** The Windows desktop uses native WPF. The proposed 3.4 release candidate also moves installation and uninstall into the compiled executable; no PowerShell or batch installer files are bundled with that build. This is test code only, pending physical validation and trusted signing.
 
 1. Download the complete packaged Windows ZIP, not GitHub's automatic Source code ZIP, and extract it.
 2. Open **OpenTabletDisplay.exe**. The desktop UI is a compiled, self-contained .NET 10 WPF application—not a PowerShell-hosted window.
@@ -132,7 +132,7 @@ If you have a Windows PC and an old Android tablet/phone, a successful **or fail
 - Android model/version;
 - native panel resolution/refresh rate;
 - whether initial setup, reconnect, sleep/wake and uninstall worked;
-- `status.cmd` output with credentials/private data removed.
+- a sanitized Diagnostics export from the Windows app.
 
 See [Device testing](docs/DEVICE_TESTING.md) for the reporting format.
 
