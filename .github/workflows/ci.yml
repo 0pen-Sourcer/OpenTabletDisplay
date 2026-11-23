@@ -142,6 +142,18 @@ jobs:
             }
             if ($deny.ExitCode -ne 73) { throw ('Expected identity mismatch exit 73, got ' + $deny.ExitCode) }
           } finally { $deny.Dispose() }
+          # Sunshine control commands must reject a different account before
+          # reading or modifying any Windows service settings.
+          foreach ($action in @('--sunshine-start','--sunshine-stop','--sunshine-automatic','--sunshine-manual')) {
+            $guard = Start-Process -FilePath $appExe -ArgumentList @($action,'S-1-5-18') -PassThru
+            try {
+              if (-not $guard.WaitForExit(25000)) {
+                $guard.Kill()
+                throw ('Identity-guard timeout: ' + $action)
+              }
+              if ($guard.ExitCode -ne 73) { throw ('Service UAC identity guard failed for ' + $action + ': ' + $guard.ExitCode) }
+            } finally { $guard.Dispose() }
+          }
           $manifestRows = @(Get-Content (Join-Path $testRoot 'SHA256SUMS.txt'))
           foreach ($row in $manifestRows) {
             if ($row -notmatch '^([0-9a-f]{64})  (.+)$') { throw ('Invalid SHA256 manifest entry: ' + $row) }
