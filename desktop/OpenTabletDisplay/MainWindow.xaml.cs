@@ -254,6 +254,98 @@ public partial class MainWindow : Window
         UninstallButton.IsEnabled = !blocked && File.Exists(AppPaths.InstallState);
     }
 
+    private void OpenWindowsDisplaySettings_Click(object sender, RoutedEventArgs e) =>
+        OpenWindowsSettings("ms-settings:display", "System → Display");
+
+    private void OpenInstalledApps_Click(object sender, RoutedEventArgs e) =>
+        OpenWindowsSettings("ms-settings:appsfeatures", "Apps → Installed apps");
+
+    private void OpenWindowsSettings(string uri,string manualPath)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(uri) { UseShellExecute=true });
+        }
+        catch(Exception ex)
+        {
+            Alert("Windows Settings could not open: "+ex.Message+
+                "\n\nPress Win + I, then open "+manualPath+".");
+        }
+    }
+
+    private async void KeepPcPrimary_Click(object sender, RoutedEventArgs e) =>
+        await RunDisplayPreferenceAsync(SunshineDisplayPreference.KeepPcPrimary);
+
+    private async void MakeTabletPrimary_Click(object sender, RoutedEventArgs e) =>
+        await RunDisplayPreferenceAsync(SunshineDisplayPreference.MakeTabletPrimary);
+
+    private async Task RunDisplayPreferenceAsync(string action)
+    {
+        if(_installing || _busy || _sunshineBusy || _displayBusy ||
+           !SunshineDisplayPreference.IsAllowed(action)) return;
+        if(_displayMode is not ("ensure_active" or "ensure_primary"))
+        {
+            Alert("Sunshine's display setting is unavailable or was changed outside OpenTabletDisplay. Nothing was modified.");
+            return;
+        }
+        string desired=SunshineDisplayPreference.ModeForAction(action);
+        if(desired==_displayMode) return;
+        string description=desired=="ensure_active"
+            ? "Keep your physical PC monitor primary while the tablet extends your desktop."
+            : "Make the tablet Windows' primary display during streaming. Applications may change position.";
+        if(MessageBox.Show(this,
+                description+"\n\nSunshine may briefly restart and disconnect Moonlight. Your pairing and drivers remain installed.\n\nApply?",
+                "Change main display behavior",MessageBoxButton.YesNo,MessageBoxImage.Question)
+            != MessageBoxResult.Yes) return;
+
+        _displayBusy=true;
+        UpdateActions();
+        Footer("Updating Sunshine display preference…");
+        DateTime startedUtc=DateTime.UtcNow;
+        try
+        {
+            using var process=SafeCommands.StartElevatedAction(action);
+            await process.WaitForExitAsync();
+            if(process.ExitCode!=0)
+            {
+                string reason=process.ExitCode==SunshineDisplayPreference.IdentityMismatch
+                    ? "Administrator approval used a different account. No change was made."
+                    : "Windows couldn't update the display preference.";
+                if(process.ExitCode!=SunshineDisplayPreference.IdentityMismatch)
+                    try
+                    {
+                        if(File.Exists(SunshineDisplayPreference.ErrorFile) &&
+                            File.GetLastWriteTimeUtc(SunshineDisplayPreference.ErrorFile)>=startedUtc.AddSeconds(-2))
+                        {
+                            string logged=File.ReadAllText(SunshineDisplayPreference.ErrorFile);
+                            if(!string.IsNullOrWhiteSpace(logged))reason=logged;
+                        }
+                    }
+                    catch(Exception ex) when(ex is IOException or UnauthorizedAccessException){}
+                throw new InvalidOperationException(reason);
+            }
+            Footer(desired=="ensure_active"
+                ? "PC monitor will stay primary while Sunshine streams."
+                : "Tablet will be primary during Sunshine streaming.");
+        }
+        catch(Win32Exception ex) when(ex.NativeErrorCode==1223)
+        {
+            Footer("Display change cancelled. Previous settings remain.");
+        }
+        catch(Exception ex)
+        {
+            Footer("Display preference update failed. See Diagnostics.");
+            Alert("Unable to update display preference:\n"+ex.Message+
+                "\n\nDo not reinstall Sunshine to fix this.");
+        }
+        finally
+        {
+            _displayBusy=false;
+            await RefreshAsync();
+            UpdateActions();
+        }
+    }
+
     private async void StartSunshine_Click(object sender, RoutedEventArgs e) =>
         await RunSunshineActionAsync(SunshineServiceControl.Start);
 
