@@ -230,6 +230,35 @@ internal static class NativeSetup
             // Keep user enrollment and runtime directories; never reset them on upgrade.
             await StopPriorAgentAsync(log);
             CopyRuntime(package,log);
+            // Preflight all USB binaries BEFORE installing Sunshine, touching
+            // drivers, or editing monitor settings. A pending AVG verdict must
+            // fail early, not after a long system setup.
+            log.Write("Preparing Android Platform Tools and verified gnirehtet runtime.");
+            string outPath=Path.Combine(AppPaths.LogsDirectory,"prepare-stdout.txt"),
+                errPath=Path.Combine(AppPaths.LogsDirectory,"prepare-stderr.txt");
+            try {
+                // The untrusted/blocked executable must fail visibly, not disappear.
+                Task<CommandOutcome> preparation=SafeCommands.ExecuteAsync(AppPaths.RuntimeExe,
+                    new[]{"prepare"},TimeSpan.FromMinutes(7));
+                while(!preparation.IsCompleted)
+                {
+                    await Task.WhenAny(preparation,Task.Delay(TimeSpan.FromSeconds(20)));
+                    if(!preparation.IsCompleted)log.Write("Waiting for verified Android dependencies / security review.");
+                }
+                var resultPrep=await preparation;
+                File.WriteAllText(outPath,resultPrep.StandardOutput);
+                File.WriteAllText(errPath,resultPrep.StandardError);
+                if(!resultPrep.Success)throw new InvalidOperationException(
+                    "USB dependency preparation failed (exit "+resultPrep.ExitCode+"): "+
+                    (resultPrep.Summary.Length>400?resultPrep.Summary[^400..]:resultPrep.Summary));
+            }
+            catch(Exception ex)
+            {
+                File.WriteAllText(errPath,ex.ToString());
+                throw new InvalidOperationException(
+                    "USB dependency preparation could not complete. Check AVG/Defender verdict and prepare-stderr.txt. "+
+                    ex.Message,ex);
+            }
             bool sunAlready=SunshineSetup.HasService();
             if(!sunAlready)
             {
@@ -305,32 +334,6 @@ internal static class NativeSetup
             log.Write("Configured Sunshine to capture verified virtual-display GUID "+displayId+".");
             await SunshineSetup.RestartAsync(log);
 
-            log.Write("Preparing Android Platform Tools and verified gnirehtet runtime.");
-            string outPath=Path.Combine(AppPaths.LogsDirectory,"prepare-stdout.txt"),
-                errPath=Path.Combine(AppPaths.LogsDirectory,"prepare-stderr.txt");
-            try {
-                // The untrusted/blocked executable must fail visibly, not disappear.
-                Task<CommandOutcome> preparation=SafeCommands.ExecuteAsync(AppPaths.RuntimeExe,
-                    new[]{"prepare"},TimeSpan.FromMinutes(7));
-                while(!preparation.IsCompleted)
-                {
-                    await Task.WhenAny(preparation,Task.Delay(TimeSpan.FromSeconds(20)));
-                    if(!preparation.IsCompleted)log.Write("Waiting for verified Android dependencies / security review.");
-                }
-                var resultPrep=await preparation;
-                File.WriteAllText(outPath,resultPrep.StandardOutput);
-                File.WriteAllText(errPath,resultPrep.StandardError);
-                if(!resultPrep.Success)throw new InvalidOperationException(
-                    "USB dependency preparation failed (exit "+resultPrep.ExitCode+"): "+
-                    (resultPrep.Summary.Length>400?resultPrep.Summary[^400..]:resultPrep.Summary));
-            }
-            catch(Exception ex)
-            {
-                File.WriteAllText(errPath,ex.ToString());
-                throw new InvalidOperationException(
-                    "USB dependency preparation could not complete. Check AVG/Defender verdict and prepare-stderr.txt. "+
-                    ex.Message,ex);
-            }
             // Save an offline repair package only after dependencies are ready.
             string saved=Path.Combine(AppPaths.Root,"package");
             if(!Path.GetFullPath(saved).Equals(Path.GetFullPath(root),StringComparison.OrdinalIgnoreCase))
