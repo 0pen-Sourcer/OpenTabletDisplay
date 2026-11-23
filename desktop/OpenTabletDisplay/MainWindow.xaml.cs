@@ -28,6 +28,8 @@ public partial class MainWindow : Window
     private bool _installing;
     private bool _busy;
     private bool _sunshineBusy;
+    private bool _displayBusy;
+    private string _displayMode = "Unavailable";
     private string? _usbCurrentOperation;
     private DateTime _usbOperationStartedUtc;
     private string _sunshineStartupMode = "Unavailable";
@@ -140,9 +142,11 @@ public partial class MainWindow : Window
         {
             var statusTask = Task.Run(SystemInspector.Read);
             var modeTask = Task.Run(SunshineServiceControl.ReadStartupMode);
-            await Task.WhenAll(statusTask, modeTask);
+            var displayTask = Task.Run(SunshineDisplayPreference.ReadMode);
+            await Task.WhenAll(statusTask,modeTask,displayTask);
             var snapshot = await statusTask;
             _sunshineStartupMode = await modeTask;
+            _displayMode = await displayTask;
             if (_closing) return;
             _snapshot = snapshot;
             AppStatusText.Text = snapshot.Installed ? snapshot.RuntimePresent ? "Installed" : "Needs repair"
@@ -160,6 +164,15 @@ public partial class MainWindow : Window
                 (snapshot.Sunshine == "Running" ? snapshot.SunshineListening
                     ? " · Endpoint responding" : " · Endpoint not responding" : "");
             SunshineStartupText.Text = "Current startup: " + _sunshineStartupMode;
+            string modeLabel = _displayMode switch
+            {
+                "ensure_active" => "PC monitor stays primary (recommended)",
+                "ensure_primary" => "Tablet becomes primary during streaming",
+                "Unmanaged" => "Sunshine setting changed outside OpenTabletDisplay",
+                _ => "Display preference unavailable"
+            };
+            DisplayModeStatusText.Text = "Current choice: " + modeLabel;
+            OnboardDisplayModeText.Text = "Current choice: " + modeLabel;
             DriverStatusText.Text = snapshot.Driver;
             AndroidStatusText.Text = snapshot.Enrolled ? "USB device enrolled" : "No USB device enrolled";
             HostAddressText.Text = string.IsNullOrEmpty(snapshot.Host) ? "Not yet connected" : snapshot.Host;
@@ -193,7 +206,7 @@ public partial class MainWindow : Window
                 : new SolidColorBrush(Color.FromRgb(243, 185, 100));
             UpdateActions();
 
-            if (!_installing && !_busy && !_sunshineBusy)
+            if (!_installing && !_busy && !_sunshineBusy && !_displayBusy)
                 Footer("Sunshine: " + snapshot.Sunshine + "  •  Virtual display: " + snapshot.Driver);
         }
         catch (Exception ex)
@@ -210,7 +223,7 @@ public partial class MainWindow : Window
     private void UpdateActions()
     {
         var s = _snapshot;
-        bool blocked = _installing || _busy || _sunshineBusy;
+        bool blocked = _installing || _busy || _sunshineBusy || _displayBusy;
         bool baseReady = s is not null && SystemInspector.ReadyForUsb(s, blocked);
         bool serviceReady = !blocked && s is { Installed: true } &&
             (s.Sunshine is "Running" or "Service stopped");
@@ -223,6 +236,12 @@ public partial class MainWindow : Window
         SunshineSettingsStopButton.IsEnabled = running;
         SunshineAutomaticButton.IsEnabled = serviceReady && _sunshineStartupMode != "Automatic";
         SunshineManualButton.IsEnabled = serviceReady && _sunshineStartupMode != "Manual";
+        bool displayConfigReady = !blocked && s is { Installed: true } &&
+            (_displayMode is "ensure_active" or "ensure_primary");
+        DisplayKeepPcButton.IsEnabled = displayConfigReady && _displayMode != "ensure_active";
+        DisplayMakeTabletButton.IsEnabled = displayConfigReady && _displayMode != "ensure_primary";
+        OnboardKeepPcButton.IsEnabled = DisplayKeepPcButton.IsEnabled;
+        OnboardMakeTabletButton.IsEnabled = DisplayMakeTabletButton.IsEnabled;
 
         InstallButton.IsEnabled = !blocked && NativePackage.Discover() is not null;
         CheckUsbButton.IsEnabled = baseReady && !_scanning;
