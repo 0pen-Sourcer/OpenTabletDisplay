@@ -18,7 +18,7 @@ namespace OpenTabletDisplay;
 
 internal static class SetupConstants
 {
-    internal const string Version = "3.4.0-rc.1";
+    internal const string Version = "3.4.0-rc.2";
     internal const string TaskName = "FSDL USB Display Agent";
     internal const string SunshineVersion = "2026.914.233613";
     internal const string SunshineUrl = "https://github.com/LizardByte/Sunshine/releases/download/v2026.914.233613/Sunshine-Windows-AMD64-installer.msi";
