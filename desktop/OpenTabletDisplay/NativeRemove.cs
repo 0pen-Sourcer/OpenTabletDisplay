@@ -21,7 +21,8 @@ internal static class NativeRemove
     internal const int IdentityMismatch=73;
     internal const int Failed=75;
 
-    internal static async Task<int> RunAsync(string expectedSid)
+    internal static async Task<int> RunAsync(
+        string expectedSid, bool removeSunshine = false, bool removeDriver = false)
     {
         string current=WindowsIdentity.GetCurrent().User?.Value??"";
         using var identity=WindowsIdentity.GetCurrent();
@@ -32,11 +33,23 @@ internal static class NativeRemove
         // Absolutely never recurse into an app root redirected to another
         // filesystem subtree through a reparse point / junction.
         if((File.GetAttributes(root)&FileAttributes.ReparsePoint)!=0)return Failed;
+        // Validate the entire deletion plan BEFORE stopping the agent or
+        // modifying configuration. An altered plan must fail closed.
+        if (!RemovalSelection.Validate(removeSunshine, removeDriver, out _))
+            return Failed;
+        string? sunshineMsi = removeSunshine ? RemovalSelection.FindOwnedSunshineMsi() : null;
+        var ownedDevices = removeDriver
+            ? RemovalSelection.ReadState()!.VddInstances
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            : Array.Empty<string>();
+        if (removeSunshine && sunshineMsi is null) return Failed;
         string logPath=Path.Combine(Path.GetTempPath(),"OpenTabletDisplay-uninstall-"+Guid.NewGuid().ToString("N")+".log");
         void Log(string msg)=>File.AppendAllText(logPath,DateTime.Now.ToString("O")+" "+msg+"\r\n",Encoding.UTF8);
         try
         {
-            Log("Removing application integration. Keeping Sunshine and installed display drivers.");
+            Log("Uninstall selection: application=yes, Sunshine=" + removeSunshine +
+                ", owned virtual display device=" + removeDriver +
+                ". Components not selected remain installed.");
             foreach(string task in new[]{SetupConstants.TaskName,"FSDL USB Bridge Agent"})
             {
                 try {await SafeCommands.ExecuteAsync(SetupProcesses.WindowsExe("schtasks.exe"),
@@ -62,10 +75,84 @@ internal static class NativeRemove
                 var currentLines=File.ReadAllLines(path);
                 var restored=SunshineConfiguration.RestoreChangedOnly(currentLines,state.SunshineChanges);
                 SunshineConfiguration.WriteAtomic(path,restored);
-                try {await SunshineSetup.RestartAsync(new SetupLog(
-                    Path.Combine(Path.GetTempPath(),"otd-uninstall-service-"+Guid.NewGuid().ToString("N")+".log")));}
-                catch(Exception ex){Log("Sunshine restart failed: "+ex.Message);}
+                if (!removeSunshine)
+                {
+                    // Preserve the deliberate stopped state. Uninstalling the
+                    // app should NOT unexpectedly start Sunshine.
+                    try
+                    {
+                        using var service = new ServiceController("SunshineService");
+                        if (service.Status == ServiceControllerStatus.Running)
+                            await SunshineSetup.RestartAsync(new SetupLog(
+                                Path.Combine(Path.GetTempPath(),"otd-uninstall-service-"+
+                                    Guid.NewGuid().ToString("N")+".log")));
+                    }
+                    catch(Exception ex){Log("Sunshine refresh skipped: "+ex.Message);}
+                }
                 Log("Restored app-owned Sunshine entries, without replacing user modifications.");
+            }
+            if (removeDriver)
+            {
+                // Only exact device instance IDs recorded when our installer
+                // created them are eligible. Other VDD devices, other driver's
+                // packages and root-enumerated monitors must never be touched.
+                if (ownedDevices.Length == 0 ||
+                    ownedDevices.Any(x => !RemovalSelection.IsOwnedDisplayInstance(x)))
+                    throw new InvalidOperationException("Owned virtual display identity changed. Removal cancelled.");
+                try
+                {
+                    using var sunshine = new ServiceController("SunshineService");
+                    if (sunshine.Status == ServiceControllerStatus.Running)
+                    {
+                        if (!sunshine.CanStop)
+                            throw new InvalidOperationException(
+                                "Sunshine is using the display and cannot be stopped safely.");
+                        sunshine.Stop();
+                        sunshine.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(30));
+                        Log("Stopped Sunshine before removing the selected virtual display device.");
+                    }
+                }
+                catch (InvalidOperationException ex) when (ex.InnerException is System.ComponentModel.Win32Exception win &&
+                    win.NativeErrorCode == 1060)
+                {
+                    // Sunshine was already removed or absent.
+                }
+                foreach (string id in ownedDevices)
+                {
+                    Log("Removing verified app-owned virtual-display instance " + id);
+                    var result = await SafeCommands.ExecuteAsync(
+                        SetupProcesses.WindowsExe("pnputil.exe"),
+                        new[] { "/remove-device", id }, TimeSpan.FromSeconds(90));
+                    if (!result.Success)
+                        throw new InvalidOperationException(
+                            "Windows refused to remove the selected virtual display device (exit " +
+                            result.ExitCode + "). The driver package and other devices were left intact.");
+                }
+                Log("Selected virtual display device removed. Driver-store package retained.");
+            }
+
+            if (removeSunshine)
+            {
+                // Never run registry-supplied uninstaller command lines.
+                // Execute Windows Installer ONLY with the exact, pinned,
+                // ownership-verified MSI product GUID.
+                string code = sunshineMsi ??
+                    throw new InvalidOperationException("Owned Sunshine MSI identification was lost.");
+                if (RemovalSelection.FindOwnedSunshineMsi() != code)
+                    throw new InvalidOperationException("Sunshine MSI identity changed during uninstall.");
+                Log("Removing the selected app-installed Sunshine MSI.");
+                var result = await SafeCommands.ExecuteAsync(
+                    SetupProcesses.WindowsExe("msiexec.exe"),
+                    new[] { "/x", code, "/qn", "/norestart" }, TimeSpan.FromMinutes(4));
+                // MSI exit 3010 means the removal succeeded but Windows
+                // requires a restart to finish deleting in-use files.
+                if (!result.Success && result.ExitCode != 3010)
+                    throw new InvalidOperationException(
+                        "Windows Installer could not remove Sunshine (exit " +
+                        result.ExitCode + "). OpenTabletDisplay remains installed so removal can be retried.");
+                Log(result.ExitCode == 3010
+                    ? "Sunshine uninstalled; Windows needs a restart to finish cleanup."
+                    : "Sunshine uninstall completed.");
             }
             try {Registry.CurrentUser.DeleteSubKeyTree(
                 @"Software\Microsoft\Windows\CurrentVersion\Uninstall\FSDL",throwOnMissingSubKey:false);}
