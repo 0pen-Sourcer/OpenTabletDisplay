@@ -1,15 +1,20 @@
 param(
     [switch]$Elevated,
-    [string]$OutputDeviceId = ''
+    [string]$OutputDeviceId = '',
+    [string]$ExpectedUserSid = ''
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 if (-not (Test-FSDLAdmin)) {
-    $args = @('-Elevated')
+    if (-not $ExpectedUserSid) { $ExpectedUserSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value }
+    $args = @('-Elevated', '-ExpectedUserSid', $ExpectedUserSid)
     if ($OutputDeviceId) { $args += ('-OutputDeviceId "' + $OutputDeviceId + '"') }
     exit (Invoke-FSDLElevatedSelf $PSCommandPath $args)
 }
+
+# Verify after UAC before downloads, driver changes, logs, or per-user writes.
+Assert-FSDLInstallerIdentity $ExpectedUserSid
 
 if (-not [Environment]::Is64BitOperatingSystem) {
     throw ('OpenTabletDisplay ' + $script:FSDLVersion + ' requires 64-bit Windows 10 or 11.')
