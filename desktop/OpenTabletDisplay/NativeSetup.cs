@@ -34,6 +34,7 @@ internal sealed class InstalledRecord
     [JsonPropertyName("sunshine_config_path")] public string? SunshineConfigPath { get; set; }
     [JsonPropertyName("sunshine_backup")] public string? SunshineBackup { get; set; }
     [JsonPropertyName("sunshine_changes")] public List<SunshineChange> SunshineChanges { get; set; } = new();
+    [JsonPropertyName("preferred_display_mode")] public string PreferredDisplayMode { get; set; } = "ensure_active";
     [JsonPropertyName("vdd_instance_ids")] public List<string> VddInstances { get; set; } = new();
     [JsonPropertyName("vdd_driver_names")] public List<string> VddDrivers { get; set; } = new();
 }
@@ -84,14 +85,16 @@ internal static class SunshineConfiguration
         if(value is not null && !written)result.Add(key+" = "+value);
         return result.ToArray();
     }
-    public static (string[] lines,List<SunshineChange> changes) Apply(string[] original,string id, IEnumerable<SunshineChange>? priorChanges=null)
+    public static (string[] lines,List<SunshineChange> changes) Apply(string[] original,string id, IEnumerable<SunshineChange>? priorChanges=null, string displayMode="ensure_active")
     {
         if(!Regex.IsMatch(id,@"^\{[0-9a-fA-F-]{36}\}$"))
             throw new InvalidDataException("Invalid Sunshine display identifier.");
+        if(displayMode is not ("ensure_active" or "ensure_primary"))
+            throw new ArgumentException("Unsupported display-primary preference.");
         string[] lines=original.ToArray();
         var changes=new List<SunshineChange>();
         var desired=new Dictionary<string,string>(Values,StringComparer.OrdinalIgnoreCase)
-            {["output_name"]=id};
+            {["output_name"]=id,["dd_configuration_option"]=displayMode};
         foreach(var pair in desired)
         {
             var before=Get(lines,pair.Key);
@@ -352,7 +355,9 @@ internal static class NativeSetup
             string backup=Path.Combine(backupDir,"sunshine.conf."+
                 DateTime.Now.ToString("yyyyMMdd-HHmmss")+".bak");
             File.Copy(cfg,backup,true);
-            var result=SunshineConfiguration.Apply(initial,displayId,old?.SunshineChanges);
+            string preferredMode=old?.PreferredDisplayMode=="ensure_primary"
+                ? "ensure_primary" : "ensure_active";
+            var result=SunshineConfiguration.Apply(initial,displayId,old?.SunshineChanges,preferredMode);
             changes=result.changes;
             SunshineConfiguration.WriteAtomic(cfg,result.lines);
             applied=true;
@@ -382,6 +387,7 @@ internal static class NativeSetup
                 SunshineOwned=!sunAlready || (old?.SunshineOwned??false),
                 DriverOwned=createdDriver.Count>0 || (old?.DriverOwned??false),
                 SunshineConfigPath=cfg,SunshineBackup=backup,SunshineChanges=changes,
+                PreferredDisplayMode=preferredMode,
                 VddInstances=createdDriver.Count>0?createdDriver:(old?.VddInstances??new()),
                 VddDrivers=old?.VddDrivers??new()
             };
@@ -544,7 +550,17 @@ internal static class NativeSetup
         var original=new[]{"encoder = nvenc","custom_option = keep","dd_resolution_option = manual"};
         var applied=SunshineConfiguration.Apply(original,"{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}");
         if(SunshineConfiguration.Get(applied.lines,"dd_configuration_option").value != "ensure_active")
-            throw new InvalidOperationException("Primary display regression: tablet must never be forced primary.");
+            throw new InvalidOperationException("Primary display regression: PC must be primary by default.");
+        var optionalPrimary=SunshineConfiguration.Apply(original,
+            "{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}",displayMode:"ensure_primary");
+        if(SunshineConfiguration.Get(optionalPrimary.lines,"dd_configuration_option").value!="ensure_primary")
+            throw new InvalidOperationException("Optional tablet-primary preference failed.");
+        bool invalidModeRejected=false;
+        try {SunshineConfiguration.Apply(original,
+            "{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}",displayMode:"untrusted");}
+        catch(ArgumentException){invalidModeRejected=true;}
+        if(!invalidModeRejected)
+            throw new InvalidOperationException("Unsupported display-primary preference was accepted.");
         var prior = new [] { new SunshineChange {
             Key="dd_configuration_option", OriginalPresent=false,
             AppliedPresent=true, AppliedValue="ensure_primary"
