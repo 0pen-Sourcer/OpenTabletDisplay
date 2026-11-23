@@ -66,6 +66,7 @@ public partial class App : Application
                     throw new InvalidOperationException("Diagnostic redaction regression.");
                 NativeSetup.SelfTest();
                 RemovalSelection.SelfTest();
+                UninstallSelectionWindow.SelfTest();
                 if (!SunshineDisplayPreference.IsAllowed(SunshineDisplayPreference.KeepPcPrimary) ||
                     !SunshineDisplayPreference.IsAllowed(SunshineDisplayPreference.MakeTabletPrimary) ||
                     SunshineDisplayPreference.IsAllowed("--sunshine-delete-display") ||
