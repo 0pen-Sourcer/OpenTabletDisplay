@@ -25,13 +25,6 @@
                     <Button x:Name="NavDevices" Content="▣   My devices" Style="{StaticResource NavButton}" Click="NavDevices_Click"/>
                     <Button x:Name="NavDiagnostics" Content="≡   Diagnostics" Style="{StaticResource NavButton}" Click="NavDiagnostics_Click"/>
                     <Button x:Name="NavSettings" Content="⚙   Preferences &amp; help" Style="{StaticResource NavButton}" Click="NavSettings_Click"/>
-                    <Border Background="#1D3048" BorderBrush="#305074" BorderThickness="1" CornerRadius="13" Margin="0,32,0,0" Padding="15">
-                        <StackPanel>
-                            <TextBlock Text="USB-FIRST • PRIVATE" Style="{StaticResource Eyebrow}" Foreground="#8FC5FF"/>
-                            <TextBlock Text="A real second screen." FontWeight="SemiBold" FontSize="14" Margin="0,8,0,4"/>
-                            <TextBlock Text="Your display stays on your cable. No online account or subscription." Style="{StaticResource Muted}" FontSize="12"/>
-                        </StackPanel>
-                    </Border>
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
                     <Border CornerRadius="9" Background="#1C2A3D" Padding="12,11">
@@ -54,7 +47,7 @@
                         <StackPanel>
                             <TextBlock x:Name="PageEyebrow" Text="YOUR WORKSPACE" Style="{StaticResource Eyebrow}"/>
                             <TextBlock x:Name="PageHeading" Text="Overview" Style="{StaticResource Title}" Margin="0,6,0,6"/>
-                            <TextBlock x:Name="PageSubheading" Text="Your second monitor, without a second monitor." Style="{StaticResource Muted}"/>
+                            <TextBlock x:Name="PageSubheading" Text="Connect your Android device as an additional Windows display." Style="{StaticResource Muted}"/>
                         </StackPanel>
                         <Button Grid.Column="1" x:Name="RefreshButton" Content="↻  Refresh status" Style="{StaticResource SecondaryButton}" Margin="15,6,0,0" VerticalAlignment="Center" Click="RefreshButton_Click"/>
                     </Grid>
@@ -68,7 +61,7 @@
                                     <TextBlock x:Name="HeroHeading" Text="Make room for more." FontSize="26" FontWeight="SemiBold" Margin="0,11,0,9"/>
                                     <TextBlock x:Name="HeroDescription" Text="Turn your Android tablet into an extended Windows display over USB." Style="{StaticResource Muted}" FontSize="14" Foreground="#BDD3F1" MaxWidth="500"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
-                                        <Button Content="Set up my display" Style="{StaticResource PrimaryButton}" Click="GoSetup_Click" Margin="0,0,10,0"/>
+                                        <Button x:Name="HeroPrimaryButton" Content="Set up my display" Style="{StaticResource PrimaryButton}" Click="HeroPrimary_Click" Margin="0,0,10,0"/>
                                         <Button Content="View diagnostics" Style="{StaticResource SecondaryButton}" Click="GoDiagnostics_Click"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -87,9 +80,15 @@
                                     <TextBlock x:Name="AppDetailText" Text="Inspecting installed components" Style="{StaticResource Muted}"/></StackPanel>
                             </Border>
                             <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource Card}" Margin="8,0,0,14">
-                                <StackPanel><TextBlock Text="SUNSHINE" Style="{StaticResource Eyebrow}"/>
+                                <StackPanel>
+                                    <TextBlock Text="SUNSHINE" Style="{StaticResource Eyebrow}"/>
                                     <TextBlock x:Name="SunshineStatusText" Text="Checking…" FontSize="20" FontWeight="SemiBold" Margin="0,10,0,5"/>
-                                    <TextBlock Text="Capture, encoding and streaming" Style="{StaticResource Muted}"/></StackPanel>
+                                    <TextBlock x:Name="SunshineReachabilityText" Text="Checking the local streaming endpoint…" Style="{StaticResource Muted}"/>
+                                    <WrapPanel Margin="0,13,0,0">
+                                        <Button x:Name="SunshineStartButton" Content="Start" Style="{StaticResource PrimaryButton}" Click="StartSunshine_Click" Margin="0,0,8,0" IsEnabled="False"/>
+                                        <Button x:Name="SunshineStopButton" Content="Stop" Style="{StaticResource SecondaryButton}" Click="StopSunshine_Click" IsEnabled="False"/>
+                                    </WrapPanel>
+                                </StackPanel>
                             </Border>
                             <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,8,0">
                                 <StackPanel><TextBlock Text="VIRTUAL DISPLAY" Style="{StaticResource Eyebrow}"/>
@@ -105,7 +104,7 @@
                         <Border Style="{StaticResource Card}">
                             <StackPanel><TextBlock Text="HOW IT WORKS" Style="{StaticResource Eyebrow}"/>
                                 <TextBlock Text="Windows → virtual screen → Sunshine → USB → Moonlight" FontSize="17" FontWeight="SemiBold" Margin="0,10,0,6"/>
-                                <TextBlock Text="A private wired connection, not browser mirroring. Android authorization and first-time pairing remain in your control." Style="{StaticResource Muted}"/></StackPanel>
+                                <TextBlock Text="Connect a tablet or phone and use Windows display settings to arrange your screens." Style="{StaticResource Muted}"/></StackPanel>
                         </Border>
                     </StackPanel>
 
@@ -113,8 +112,8 @@
                         <Border Style="{StaticResource Card}" Margin="0,0,0,18">
                             <StackPanel>
                                 <TextBlock Text="01   PREPARE WINDOWS" Style="{StaticResource Eyebrow}"/>
-                                <TextBlock Text="Install the pieces only once." Style="{StaticResource Heading}" Margin="0,11,0,8"/>
-                                <TextBlock Text="Approve Windows administrator access only when you choose to install. The installer verifies pinned downloads and preserves existing Sunshine settings where possible." Style="{StaticResource Muted}"/>
+                                <TextBlock x:Name="SetupStepHeading" Text="Install OpenTabletDisplay" Style="{StaticResource Heading}" Margin="0,11,0,8"/>
+                                <TextBlock x:Name="SetupStepDescription" Text="Install and configure Sunshine and the display driver. Windows will request administrator approval. Existing settings will be preserved where possible." Style="{StaticResource Muted}"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
                                     <Button x:Name="InstallButton" Content="Install / repair" Style="{StaticResource PrimaryButton}" Click="InstallButton_Click" Margin="0,0,10,0"/>
                                     <Button Content="Inspect installer log" Style="{StaticResource SecondaryButton}" Click="GoDiagnostics_Click"/>
@@ -136,7 +135,7 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource Card}">
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,18">
                             <StackPanel>
                                 <TextBlock Text="03   PAIR MOONLIGHT" Style="{StaticResource Eyebrow}"/>
                                 <TextBlock Text="Open Moonlight on your Android device." Style="{StaticResource Heading}" Margin="0,11,0,8"/>
@@ -153,6 +152,29 @@
                                     <Button Content="Get Moonlight" Style="{StaticResource SecondaryButton}" Click="MoonlightButton_Click" Margin="0,0,10,0"/>
                                     <Button Content="Sunshine settings" Style="{StaticResource SecondaryButton}" Click="SunshineButton_Click"/>
                                 </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                            <StackPanel>
+                                <TextBlock Text="04   ARRANGE YOUR SCREENS" Style="{StaticResource Eyebrow}"/>
+                                <TextBlock Text="Keep your monitor for games, tablet for everything else." Style="{StaticResource Heading}" Margin="0,10,0,8" TextWrapping="Wrap"/>
+                                <TextBlock Text="Choose what Windows treats as the main display while Sunshine streams. Your PC monitor is the recommended default." Style="{StaticResource Muted}"/>
+                                <TextBlock x:Name="OnboardDisplayModeText" Text="Current choice: Checking…" Style="{StaticResource Muted}" Margin="0,12,0,0"/>
+                                <WrapPanel Margin="0,15,0,0">
+                                    <Button x:Name="OnboardKeepPcButton" Content="Keep PC monitor primary (recommended)" Style="{StaticResource PrimaryButton}" Click="KeepPcPrimary_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                    <Button x:Name="OnboardMakeTabletButton" Content="Make tablet primary during streaming" Style="{StaticResource SecondaryButton}" Click="MakeTabletPrimary_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                </WrapPanel>
+                                <TextBlock Text="In Windows Display settings: click Identify, choose Extend these displays, arrange 1 and 2, and select the PC monitor as the main display if that's your preference." Style="{StaticResource Muted}" Margin="0,5,0,12"/>
+                                <Button Content="Open Windows display settings" Style="{StaticResource SecondaryButton}" Click="OpenWindowsDisplaySettings_Click" HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="05   MAKE IT YOURS" Style="{StaticResource Eyebrow}"/>
+                                <TextBlock Text="Move windows, keep your audio." Style="{StaticResource Heading}" Margin="0,10,0,8"/>
+                                <TextBlock Text="Click a window and press Win + Shift + Left/Right Arrow to move it between screens. Chrome and Incognito may remember different positions." Style="{StaticResource Muted}"/>
+                                <TextBlock Text="To capture only one screen, press Win + Shift + S, then select a rectangle or a single window." Style="{StaticResource Muted}" Margin="0,9,0,0"/>
+                                <TextBlock Text="For sound on PC speakers: on your tablet enable Moonlight → Settings → Host Settings → Play audio on PC, then mute the tablet's media volume." Style="{StaticResource Muted}" Margin="0,9,0,0"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -180,6 +202,8 @@
                                     <Button x:Name="StartUsbButton" Content="Start / repair connection" Style="{StaticResource PrimaryButton}" Click="StartUsbButton_Click" Margin="0,0,11,0" IsEnabled="False"/>
                                     <Button x:Name="StopUsbButton" Content="Stop connection" Style="{StaticResource SecondaryButton}" Click="StopUsbButton_Click" IsEnabled="False"/>
                                 </StackPanel>
+                                <TextBlock x:Name="UsbOperationStatus" Text="USB connection status will appear here." Style="{StaticResource Muted}" Margin="0,12,0,0"/>
+                                <ProgressBar x:Name="UsbOperationProgress" Visibility="Collapsed" IsIndeterminate="True" Height="4" Margin="0,10,0,0" Background="#273F60" Foreground="#64B5FF"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -212,9 +236,49 @@
                     <StackPanel x:Name="SettingsPage" Visibility="Collapsed">
                         <Border Style="{StaticResource Card}" Margin="0,0,0,18">
                             <StackPanel>
+                                <TextBlock Text="SUNSHINE" Style="{StaticResource Eyebrow}"/>
+                                <TextBlock Text="Streaming service" Style="{StaticResource Heading}" Margin="0,10,0,8"/>
+                                <TextBlock Text="Turn streaming on when you need your tablet, and off when you're done. Your pairing and virtual display are kept." Style="{StaticResource Muted}"/>
+                                <TextBlock x:Name="SunshineServiceDetail" Text="Checking Sunshine service…" Style="{StaticResource Muted}" Margin="0,12,0,0"/>
+                                <WrapPanel Margin="0,16,0,0">
+                                    <Button x:Name="SunshineSettingsStartButton" Content="Start Sunshine" Style="{StaticResource PrimaryButton}" Click="StartSunshine_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                    <Button x:Name="SunshineSettingsStopButton" Content="Stop Sunshine" Style="{StaticResource SecondaryButton}" Click="StopSunshine_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                </WrapPanel>
+                                <TextBlock Text="WHEN WINDOWS STARTS" Style="{StaticResource Eyebrow}" Margin="0,18,0,0"/>
+                                <TextBlock x:Name="SunshineStartupText" Text="Checking startup preference…" Style="{StaticResource Muted}" Margin="0,9,0,0"/>
+                                <WrapPanel Margin="0,14,0,0">
+                                    <Button x:Name="SunshineAutomaticButton" Content="Start automatically" Style="{StaticResource SecondaryButton}" Click="SunshineAutomatic_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                    <Button x:Name="SunshineManualButton" Content="Start manually" Style="{StaticResource SecondaryButton}" Click="SunshineManual_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                </WrapPanel>
+                                <TextBlock Text="This changes only Sunshine's Windows service setting. It doesn't start or stop your stream immediately." Style="{StaticResource Muted}" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                            <StackPanel>
+                                <TextBlock Text="DISPLAY BEHAVIOR" Style="{StaticResource Eyebrow}"/>
+                                <TextBlock Text="Choose your main screen" Style="{StaticResource Heading}" Margin="0,10,0,8"/>
+                                <TextBlock Text="Keep games and new windows on your PC monitor by default, or let Moonlight temporarily promote the tablet to the main display." Style="{StaticResource Muted}"/>
+                                <TextBlock x:Name="DisplayModeStatusText" Text="Checking your current display preference…" Style="{StaticResource Muted}" Margin="0,12,0,0"/>
+                                <WrapPanel Margin="0,15,0,0">
+                                    <Button x:Name="DisplayKeepPcButton" Content="Keep PC monitor primary" Style="{StaticResource PrimaryButton}" Click="KeepPcPrimary_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                    <Button x:Name="DisplayMakeTabletButton" Content="Make tablet primary during streaming" Style="{StaticResource SecondaryButton}" Click="MakeTabletPrimary_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                </WrapPanel>
+                                <TextBlock Text="Changing this setting may briefly restart Sunshine and disconnect an active Moonlight session. It does not install drivers or reset device pairing." Style="{StaticResource Muted}" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                            <StackPanel>
+                                <TextBlock Text="AUDIO" Style="{StaticResource Eyebrow}"/>
+                                <TextBlock Text="Keep sound on your PC" Style="{StaticResource Heading}" Margin="0,10,0,8"/>
+                                <TextBlock Text="On your tablet, open Moonlight Settings and enable Host Settings → Play audio on PC. This keeps PC speakers playing, but Moonlight also sends sound to the tablet. Mute the tablet's media volume if you want PC-only sound." Style="{StaticResource Muted}"/>
+                                <TextBlock Text="Moonlight manages this setting. OpenTabletDisplay does not silently change your Windows sound output." Style="{StaticResource Muted}" Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                            <StackPanel>
                                 <TextBlock Text="PRIVACY &amp; TRUST" Style="{StaticResource Eyebrow}"/>
-                                <TextBlock Text="Security is not an obstacle to bypass." Style="{StaticResource Heading}" Margin="0,10,0,8"/>
-                                <TextBlock Text="No cloud account, telemetry, automatic antivirus exceptions, unverified downloads or hidden elevation. Windows and Android permission requests remain explicit." Style="{StaticResource Muted}"/>
+                                <TextBlock Text="Security &amp; permissions" Style="{StaticResource Heading}" Margin="0,10,0,8"/>
+                                <TextBlock Text="Review the components OpenTabletDisplay uses and the permissions they require." Style="{StaticResource Muted}"/>
                                 <TextBlock Text="If security software blocks the unsigned transport engine, review the detection and request publisher verification. Never disable protection to force installation." Foreground="#F5BD7C" Margin="0,12,0,0" FontSize="13"/>
                             </StackPanel>
                         </Border>
@@ -233,8 +297,10 @@
                             <StackPanel>
                                 <TextBlock Text="UNINSTALL" Style="{StaticResource Eyebrow}"/>
                                 <TextBlock Text="Remove the OpenTabletDisplay integration." Style="{StaticResource Heading}" Margin="0,10,0,8"/>
-                                <TextBlock Text="Confirms before changing the system. Existing Sunshine and virtual-display drivers are preserved by default." Style="{StaticResource Muted}"/>
-                                <Button x:Name="UninstallButton" Content="Uninstall integration" Style="{StaticResource SecondaryButton}" Click="UninstallButton_Click" Margin="0,18,0,0" HorizontalAlignment="Left"/>
+                                <TextBlock Text="This removes only OpenTabletDisplay, its USB integration, and its background tasks. Sunshine and Virtual Display Driver will NOT be uninstalled. Those apps may also be used independently." Style="{StaticResource Muted}"/>
+                                <Button x:Name="UninstallButton" Content="Remove OpenTabletDisplay only" Style="{StaticResource SecondaryButton}" Click="UninstallButton_Click" Margin="0,18,0,0" HorizontalAlignment="Left"/>
+                                <TextBlock Text="Want Sunshine gone too? Use Windows Installed apps to uninstall it separately. Remove the virtual display driver only if no other application uses it." Style="{StaticResource Muted}" Margin="0,15,0,0"/>
+                                <Button Content="Open Windows Installed apps" Style="{StaticResource SecondaryButton}" Click="OpenInstalledApps_Click" Margin="0,14,0,0" HorizontalAlignment="Left"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -244,7 +310,7 @@
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <TextBlock x:Name="FooterText" Text="Checking component health…" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" FontSize="12" Foreground="#D1E1F5" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="1" Text="LOCAL  •  USB-FIRST  •  PRIVATE" FontSize="10" FontWeight="Bold" Foreground="#7896BB" VerticalAlignment="Center" Margin="15,0,0,0"/>
+                    <TextBlock Grid.Column="1" Text="OpenTabletDisplay" FontSize="11" Foreground="#7896BB" VerticalAlignment="Center" Margin="15,0,0,0"/>
                 </Grid>
             </Border>
         </Grid>

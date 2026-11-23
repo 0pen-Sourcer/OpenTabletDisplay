@@ -62,49 +62,27 @@ internal static class SafeCommands
         }
     }
 
-    public static Process StartElevatedInstaller(string installer)
+    public static Process StartElevatedAction(string action)
     {
-        if (!File.Exists(installer)) throw new FileNotFoundException("Installer script not found", installer);
-        // A UAC-filtered administrator token often lacks an enabled
-        // Administrators group. Do not reject based on token group membership.
-        // Instead, pass the originating user's SID to the elevated script,
-        // which checks it BEFORE writing any per-user files or system settings.
+        if (action is not ("--native-install" or "--native-remove") &&
+            !SunshineServiceControl.IsAllowed(action) &&
+            !SunshineDisplayPreference.IsAllowed(action))
+            throw new ArgumentException("Unsupported administrator action.");
         using var identity = WindowsIdentity.GetCurrent();
-        string originatingSid = identity.User?.Value ??
-            throw new InvalidOperationException("Could not determine Windows account identity. Setup was not started.");
-        bool isSetup = string.Equals(Path.GetFileName(installer), "install.ps1",
-            StringComparison.OrdinalIgnoreCase);
-        // The *compiled desktop app* is its own fixed-purpose elevated helper:
-        // it records launch failures that would otherwise be lost in a hidden
-        // PowerShell process. No arbitrary user-supplied script is accepted.
-        if (isSetup)
+        string sid=identity.User?.Value??throw new InvalidOperationException(
+            "Could not determine originating Windows account.");
+        string exe=Environment.ProcessPath??throw new InvalidOperationException(
+            "Windows executable path is unavailable.");
+        var start=new ProcessStartInfo(exe)
         {
-            string desktopExe = Environment.ProcessPath ??
-                throw new InvalidOperationException("Could not identify this executable.");
-            var start = new ProcessStartInfo(desktopExe)
-            {
-                UseShellExecute = true,
-                Verb = "runas",
-                WorkingDirectory = Path.GetDirectoryName(desktopExe)!
-            };
-            start.ArgumentList.Add(ElevatedBootstrap.Argument);
-            start.ArgumentList.Add(originatingSid);
-            return Process.Start(start) ?? throw new InvalidOperationException("Windows did not start the elevated helper.");
-        }
-        // Uninstall stays a separately approved operation. It cannot run the
-        // in-place EXE bootstrap because that would lock the EXE while removing it.
-        var uninstall = new ProcessStartInfo(
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
-                "WindowsPowerShell", "v1.0", "powershell.exe"))
-        {
-            UseShellExecute = true, Verb = "runas",
-            WorkingDirectory = Path.GetDirectoryName(installer)!,
-            WindowStyle = ProcessWindowStyle.Normal
+            UseShellExecute=true,
+            Verb="runas",
+            WorkingDirectory=Path.GetDirectoryName(exe)!
         };
-        foreach (var arg in new[] { "-NoProfile", "-NonInteractive", "-File",
-                                    installer, "-Elevated", "-ExpectedUserSid", originatingSid })
-            uninstall.ArgumentList.Add(arg);
-        return Process.Start(uninstall) ?? throw new InvalidOperationException("Windows did not start the elevated uninstaller.");
+        start.ArgumentList.Add(action);
+        start.ArgumentList.Add(sid);
+        return Process.Start(start)??throw new InvalidOperationException(
+            "Windows did not start the administrator-approved action.");
     }
 
     public static bool IsValidAndroidSerial(string? value) =>

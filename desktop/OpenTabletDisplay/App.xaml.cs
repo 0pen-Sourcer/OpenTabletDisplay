@@ -14,12 +14,26 @@ public partial class App : Application
     {
         DispatcherUnhandledException += OnApplicationException;
         base.OnStartup(e);
-        if (e.Args.Length == 2 &&
-            string.Equals(e.Args[0], ElevatedBootstrap.Argument, StringComparison.Ordinal))
+        if (e.Args.Length == 2 && e.Args[0] is "--native-install" or "--native-remove")
         {
-            // This fixed-purpose UAC helper has no user-facing WPF window.
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            int result = await ElevatedBootstrap.RunAsync(e.Args[1]);
+            int result = e.Args[0] == "--native-install"
+                ? await NativeSetup.InstallAsync(e.Args[1])
+                : await NativeRemove.RunAsync(e.Args[1]);
+            Shutdown(result);
+            return;
+        }
+        if (e.Args.Length == 2 && SunshineDisplayPreference.IsAllowed(e.Args[0]))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            int result = await SunshineDisplayPreference.RunAsync(e.Args[0],e.Args[1]);
+            Shutdown(result);
+            return;
+        }
+        if (e.Args.Length == 2 && SunshineServiceControl.IsAllowed(e.Args[0]))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            int result = await SunshineServiceControl.RunElevatedAsync(e.Args[0], e.Args[1]);
             Shutdown(result);
             return;
         }
@@ -34,6 +48,22 @@ public partial class App : Application
                 var sanitized = DiagnosticReader.Sanitize("password: veryprivate 192.168.1.1");
                 if (sanitized.Contains("veryprivate") || sanitized.Contains("192.168.1.1"))
                     throw new InvalidOperationException("Diagnostic redaction regression.");
+                NativeSetup.SelfTest();
+                if (!SunshineDisplayPreference.IsAllowed(SunshineDisplayPreference.KeepPcPrimary) ||
+                    !SunshineDisplayPreference.IsAllowed(SunshineDisplayPreference.MakeTabletPrimary) ||
+                    SunshineDisplayPreference.IsAllowed("--sunshine-delete-display") ||
+                    SunshineDisplayPreference.ModeForAction(SunshineDisplayPreference.KeepPcPrimary)!="ensure_active" ||
+                    SunshineDisplayPreference.ModeForAction(SunshineDisplayPreference.MakeTabletPrimary)!="ensure_primary")
+                    throw new InvalidOperationException("Display preference allowlist regression.");
+                if (!SunshineServiceControl.IsAllowed(SunshineServiceControl.Start) ||
+                    !SunshineServiceControl.IsAllowed(SunshineServiceControl.Stop) ||
+                    !SunshineServiceControl.IsAllowed(SunshineServiceControl.Automatic) ||
+                    !SunshineServiceControl.IsAllowed(SunshineServiceControl.Manual) ||
+                    SunshineServiceControl.IsAllowed("--sunshine-delete") ||
+                    SunshineServiceControl.IsAllowed("--native-remove"))
+                    throw new InvalidOperationException("Sunshine service command allowlist regression.");
+                // Offline package-integrity and policy-sensitive setup paths
+                // are checked by CI; never run privileged installation here.
                 var window = new MainWindow();
                 if (window.Title != "OpenTabletDisplay")
                     throw new InvalidOperationException("WPF main window title regression.");
@@ -54,6 +84,8 @@ public partial class App : Application
         }
         MainWindow = new MainWindow();
         MainWindow.Show();
+        if (e.Args.Contains("--uninstall", StringComparer.OrdinalIgnoreCase))
+            ((MainWindow)MainWindow).NavigateToUninstall();
     }
 
     protected override void OnExit(ExitEventArgs e)

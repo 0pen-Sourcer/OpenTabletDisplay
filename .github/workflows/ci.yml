@@ -96,16 +96,17 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Guard native UAC error reporting and policy preservation
+      - name: Verify user-facing setup is completely native
         shell: powershell
         run: |
-          $bootstrap = Get-Content desktop/OpenTabletDisplay/ElevatedBootstrap.cs -Raw
-          $controller = Get-Content desktop/OpenTabletDisplay/MainWindow.xaml.cs -Raw
-          $runner = Get-Content desktop/OpenTabletDisplay/SafeCommands.cs -Raw
-          if ($bootstrap -notmatch 'RedirectStandardError = true') { throw 'Elevated bootstrap must capture PowerShell stderr.' }
-          if ($bootstrap -match 'ExecutionPolicy.*Bypass|Set-ExecutionPolicy|Unblock-File') { throw 'Policy bypass in elevated bootstrap.' }
-          if ($runner -notmatch 'ElevatedBootstrap.Argument') { throw 'Native elevated bootstrap was not wired.' }
-          if ($controller -notmatch 'GetRelevantInstallFailure\(_attemptStartUtc, exit\)') { throw 'New installation errors may be confused with stale logs.' }
+          $gui = Get-Content desktop/OpenTabletDisplay/App.xaml.cs -Raw
+          $install = Get-Content desktop/OpenTabletDisplay/NativeSetup.cs -Raw
+          $launch = Get-Content desktop/OpenTabletDisplay/SafeCommands.cs -Raw
+          $xaml = Get-Content desktop/OpenTabletDisplay/MainWindow.xaml -Raw
+          if ($gui -notmatch 'NativeSetup.InstallAsync') { throw 'Native installer is not wired into app.' }
+          if ($launch -notmatch '--native-install') { throw 'Native UAC bootstrap is missing.' }
+          if ($install -match 'Set-ExecutionPolicy|Unblock-File|-ExecutionPolicy Bypass') { throw 'PowerShell bypass detected.' }
+          if ($xaml -match 'USB-FIRST|LOCAL\s+•\s+USB-FIRST') { throw 'Obsolete sidebar slogans remain.' }
       - name: Build and inspect the native Windows application
         shell: powershell
         run: |
@@ -115,10 +116,10 @@ jobs:
           if (-not $archive) { throw 'Native Windows archive was not produced.' }
           $testRoot = Join-Path $env:RUNNER_TEMP 'otd-release-inspection'
           Expand-Archive -LiteralPath $archive.FullName -DestinationPath $testRoot -Force
-          foreach ($required in @('OpenTabletDisplay.exe','assets\OpenTabletDisplay.ico','assets\OpenTabletDisplay.png','installer\install.ps1', 'payload\FSDL.exe','payload\FSDL-Agent.exe','payload\probes\fsdl-probe-android-arm64','SHA256SUMS.txt')) {
+          foreach ($required in @('OpenTabletDisplay.exe','assets\OpenTabletDisplay.ico','assets\OpenTabletDisplay.png','payload\FSDL.exe','payload\FSDL-Agent.exe','payload\probes\fsdl-probe-android-arm64','SHA256SUMS.txt')) {
             if (-not (Test-Path -LiteralPath (Join-Path $testRoot $required))) { throw ('Release package missing: ' + $required) }
           }
-          if (Test-Path (Join-Path $testRoot 'installer\desktop.ps1')) { throw 'Legacy PowerShell-hosted UI must never ship in native release.' }
+          if (Get-ChildItem $testRoot -Recurse -Include *.ps1,*.cmd -File) { throw 'Native Windows release must not ship PowerShell or batch installers.' }
           Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class IconCheck { [DllImport("shell32.dll", CharSet=CharSet.Unicode)] public static extern uint ExtractIconEx(string file, int index, IntPtr[] large, IntPtr[] small, uint count); }'
           $appExe = Join-Path $testRoot 'OpenTabletDisplay.exe'
           if ([IconCheck]::ExtractIconEx($appExe, -1, $null, $null, 0) -lt 1) { throw 'Embedded Windows icon missing.' }
@@ -132,6 +133,27 @@ jobs:
             }
             if ($smoke.ExitCode -ne 0) { throw ('Native WPF smoke test failed: exit ' + $smoke.ExitCode) }
           } finally { $smoke.Dispose() }
+          # Wrong-account UAC must be rejected before ANY installer writes.
+          $deny = Start-Process -FilePath $appExe -ArgumentList @('--native-install','S-1-5-18') -PassThru
+          try {
+            if (-not $deny.WaitForExit(25000)) {
+              $deny.Kill()
+              throw 'Identity-mismatch native setup did not fail closed.'
+            }
+            if ($deny.ExitCode -ne 73) { throw ('Expected identity mismatch exit 73, got ' + $deny.ExitCode) }
+          } finally { $deny.Dispose() }
+          # Sunshine control commands must reject a different account before
+          # reading or modifying any Windows service settings.
+          foreach ($action in @('--sunshine-start','--sunshine-stop','--sunshine-automatic','--sunshine-manual')) {
+            $guard = Start-Process -FilePath $appExe -ArgumentList @($action,'S-1-5-18') -PassThru
+            try {
+              if (-not $guard.WaitForExit(25000)) {
+                $guard.Kill()
+                throw ('Identity-guard timeout: ' + $action)
+              }
+              if ($guard.ExitCode -ne 73) { throw ('Service UAC identity guard failed for ' + $action + ': ' + $guard.ExitCode) }
+            } finally { $guard.Dispose() }
+          }
           $manifestRows = @(Get-Content (Join-Path $testRoot 'SHA256SUMS.txt'))
           foreach ($row in $manifestRows) {
             if ($row -notmatch '^([0-9a-f]{64})  (.+)$') { throw ('Invalid SHA256 manifest entry: ' + $row) }
@@ -163,7 +185,7 @@ jobs:
       - name: Upload verified Windows release-candidate package
         uses: actions/upload-artifact@v4
         with:
-          name: OpenTabletDisplay-Native-WPF-RC3
+          name: OpenTabletDisplay-Native-Setup-RC4
           path: |
             dist/OpenTabletDisplay-*-windows-x64.zip
             dist/OpenTabletDisplay-*-windows-x64.zip.sha256

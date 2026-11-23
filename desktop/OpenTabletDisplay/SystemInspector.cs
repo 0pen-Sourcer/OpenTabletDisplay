@@ -5,6 +5,7 @@ using System.Linq;
 using System.Management;
 using System.Net;
 using System.Net.Sockets;
+using System.Net.Http;
 using System.ServiceProcess;
 using System.Text.Json;
 
@@ -23,24 +24,7 @@ internal static class AppPaths
     public static string SessionState => Path.Combine(Root, "runtime", "state.json");
     public static string LogsDirectory => Path.Combine(Root, "logs");
 
-    public static string? InstallerScript
-    {
-        get
-        {
-            var current = Path.Combine(AppContext.BaseDirectory, "installer", "install.ps1");
-            if (File.Exists(current)) return current;
-            var cached = Path.Combine(Root, "package", "installer", "install.ps1");
-            return File.Exists(cached) ? cached : null;
-        }
-    }
-    public static string? UninstallScript
-    {
-        get
-        {
-            var installed = Path.Combine(Root, "uninstall.ps1");
-            return File.Exists(installed) ? installed : null;
-        }
-    }
+
 }
 
 internal sealed record SystemSnapshot(
@@ -51,29 +35,53 @@ internal sealed record SystemSnapshot(
     bool Enrolled,
     string Host,
     string Detail,
-    bool AdbPresent)
+    bool AdbPresent,
+    bool SunshineListening)
 {
-    public bool WindowsReady => Installed && Sunshine == "Running" && Driver == "Ready";
+    public bool WindowsReady => Installed && Sunshine == "Running" && SunshineListening && Driver == "Ready";
 }
 
 internal static class SystemInspector
 {
+    private static readonly HttpClient LocalSunshineClient = new(new HttpClientHandler { UseProxy = false })
+    {
+        Timeout = TimeSpan.FromSeconds(2)
+    };
+
     public static SystemSnapshot Read()
     {
         bool installed = File.Exists(AppPaths.InstallState);
         bool runtime = File.Exists(AppPaths.RuntimeExe);
         bool adb = File.Exists(AppPaths.AdbExe);
         var sunshine = ReadSunshine();
+        var sunshineListening = sunshine == "Running" && ProbeSunshineEndpoint();
         var driver = ReadDisplay();
         var enrolled = File.Exists(AppPaths.Enrollment);
         string host = ReadHost();
         string detail = !installed ? runtime ? "Setup was interrupted before completion."
             : "Run one-time setup to prepare Windows." :
             !runtime ? "USB runtime files are missing: repair required."
-            : sunshine != "Running" ? "Sunshine service needs attention."
+            : sunshine == "Service stopped" ? "Sunshine is off. Start it when you want to stream."
+            : sunshine != "Running" ? "Sunshine isn't available. Check its service."
+            : !sunshineListening ? "Sunshine's service is running, but its local streaming endpoint is not responding yet."
             : driver != "Ready" ? "The Windows virtual-display driver needs attention."
             : "Windows dependencies are ready.";
-        return new(installed, runtime, sunshine, driver, enrolled, host, detail, adb);
+        return new(installed, runtime, sunshine, driver, enrolled, host, detail, adb, sunshineListening);
+    }
+
+    private static bool ProbeSunshineEndpoint()
+    {
+        try
+        {
+            using var response = LocalSunshineClient.GetAsync("http://127.0.0.1:47989/serverinfo")
+                .GetAwaiter().GetResult();
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
+                                   or InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private static string ReadSunshine()
@@ -139,5 +147,5 @@ internal static class SystemInspector
 
     public static bool ReadyForUsb(SystemSnapshot s, bool setupOrCommandRunning) =>
         !setupOrCommandRunning && s.Installed && s.RuntimePresent && s.AdbPresent &&
-        s.Sunshine == "Running" && s.Driver == "Ready";
+        s.Sunshine == "Running" && s.SunshineListening && s.Driver == "Ready";
 }
