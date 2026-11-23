@@ -179,6 +179,8 @@
                                     <Button x:Name="StartUsbButton" Content="Start / repair connection" Style="{StaticResource PrimaryButton}" Click="StartUsbButton_Click" Margin="0,0,11,0" IsEnabled="False"/>
                                     <Button x:Name="StopUsbButton" Content="Stop connection" Style="{StaticResource SecondaryButton}" Click="StopUsbButton_Click" IsEnabled="False"/>
                                 </StackPanel>
+                                <TextBlock x:Name="UsbOperationStatus" Text="USB connection status will appear here." Style="{StaticResource Muted}" Margin="0,12,0,0"/>
+                                <ProgressBar x:Name="UsbOperationProgress" Visibility="Collapsed" IsIndeterminate="True" Height="4" Margin="0,10,0,0" Background="#273F60" Foreground="#64B5FF"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -226,6 +228,14 @@
                                     <Button x:Name="SunshineManualButton" Content="Start manually" Style="{StaticResource SecondaryButton}" Click="SunshineManual_Click" Margin="0,0,10,10" IsEnabled="False"/>
                                 </WrapPanel>
                                 <TextBlock Text="This changes only Sunshine's Windows service setting. It doesn't start or stop your stream immediately." Style="{StaticResource Muted}" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                            <StackPanel>
+                                <TextBlock Text="AUDIO" Style="{StaticResource Eyebrow}"/>
+                                <TextBlock Text="Keep sound on your PC" Style="{StaticResource Heading}" Margin="0,10,0,8"/>
+                                <TextBlock Text="On your tablet, open Moonlight Settings and enable Host Settings → Play audio on PC. This keeps PC speakers playing, but Moonlight also sends sound to the tablet. Mute the tablet's media volume if you want PC-only sound." Style="{StaticResource Muted}"/>
+                                <TextBlock Text="Moonlight manages this setting. OpenTabletDisplay does not silently change your Windows sound output." Style="{StaticResource Muted}" Margin="0,10,0,0"/>
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource Card}" Margin="0,0,0,18">
