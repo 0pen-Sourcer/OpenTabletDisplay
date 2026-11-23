@@ -115,10 +115,10 @@ OpenTabletDisplay deliberately does not rewrite Moonlight preferences behind you
 
 The current 3.x package retains some internal **FSDL** names for upgrade compatibility with the project's original name.
 
-- `status.cmd` — Sunshine/VDD/agent/bridge health + recent agent log
-- `reset-device.cmd` — forget the enrolled Android device before switching
-- `uninstall.cmd` — remove OpenTabletDisplay/FSDL integration and restore Sunshine settings it changed
-- `installer\uninstall.ps1 -RemoveDependencies` — also remove Sunshine/VDD **only when install-state proves this project originally installed them**
+- **Diagnostics:** Sunshine, virtual-display driver, Android enrollment, USB bridge health and local logs.
+- **My devices:** Select or forget an Android device.
+- **Preferences & help → Choose components…:** Opens a checkbox dialog before uninstall. OpenTabletDisplay is selected by default; Sunshine and virtual display are unchecked. Additional removal is permitted only when the app's installation record and Windows component identity match. A final confirmation shows the exact choices.
+- **Windows Installed apps:** The OpenTabletDisplay removal entry launches the same interface. External installations, unrelated device drivers and downloaded archives are not deleted automatically.
 
 Existing Sunshine credentials and Moonlight pairing state are preserved when compatible installations are reused.
 
