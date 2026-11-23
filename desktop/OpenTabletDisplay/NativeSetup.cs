@@ -346,15 +346,9 @@ internal static class NativeSetup
                 if(Directory.Exists(previous))Directory.Delete(previous,true);
             }
             CopyDesktop(package,log);
-            string user=WindowsIdentity.GetCurrent().Name;
             string taskExe=Path.Combine(AppPaths.Root,"FSDL-Agent.exe");
-            // User-specific login task, no PowerShell, no command shell, limited run-level.
-            await SetupProcesses.RequireAsync(SetupProcesses.WindowsExe("schtasks.exe"),
-                new[]{"/Create","/F","/SC","ONLOGON","/TN",SetupConstants.TaskName,
-                    "/TR","\""+taskExe+"\" daemon","/RU",user,"/RL","LIMITED"},
-                TimeSpan.FromSeconds(40),"Register background connection agent",log);
-            await SetupProcesses.RequireAsync(SetupProcesses.WindowsExe("schtasks.exe"),
-                new[]{"/Run","/TN",SetupConstants.TaskName},TimeSpan.FromSeconds(15),"Start background agent",log);
+            log.Write("Registering reconnect agent as a limited-user Windows task.");
+            NativeAgentTask.RegisterAndStart(taskExe);
             var state=new InstalledRecord{
                 Version=SetupConstants.Version,InstalledAt=DateTimeOffset.Now,
                 SunshineOwned=!sunAlready || (old?.SunshineOwned??false),
