@@ -165,6 +165,15 @@ internal static class SunshineServiceControl
         {
             // Only this one app-owned log is written, never Sunshine's config
             // or credentials. Report errors, but never suppress service failure.
+            // The elevated helper must not follow an untrusted junction or
+            // symbolic-link log target outside the app's own directory.
+            foreach (string dir in new[] { AppPaths.Root, AppPaths.LogsDirectory })
+                if (Directory.Exists(dir) &&
+                    (File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0)
+                    return;
+            if (File.Exists(LogPath) &&
+                (File.GetAttributes(LogPath) & FileAttributes.ReparsePoint) != 0)
+                return;
             Directory.CreateDirectory(AppPaths.LogsDirectory);
             File.AppendAllText(LogPath, "[" + DateTimeOffset.Now.ToString("O") +
                 "] " + line + Environment.NewLine);
