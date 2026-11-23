@@ -149,7 +149,11 @@ internal static class SunshineServiceControl
         using var parameters = service.GetMethodParameters("ChangeStartMode");
         parameters["StartMode"] = mode;
         using var result = service.InvokeMethod("ChangeStartMode", parameters, null);
-        uint status = Convert.ToUInt32(result?["ReturnValue"], CultureInfo.InvariantCulture);
+        if (result is null || result["ReturnValue"] is null)
+            throw new InvalidOperationException("Windows did not return a Sunshine startup-mode result.");
+        uint status = Convert.ToUInt32(result["ReturnValue"], CultureInfo.InvariantCulture);
+        if (status == 2)
+            throw new UnauthorizedAccessException("Administrator approval is required to change Sunshine startup settings.");
         if (status != 0)
             throw new InvalidOperationException(
                 "Windows could not change Sunshine's startup preference (code " + status + ").");
