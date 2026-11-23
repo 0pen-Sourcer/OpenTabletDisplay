@@ -21,6 +21,18 @@ function Test-FSDLAdmin {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Assert-FSDLInstallerIdentity([string]$ExpectedUserSid) {
+    if ([string]::IsNullOrWhiteSpace($ExpectedUserSid)) { return }
+    if ($ExpectedUserSid -notmatch '^S-[0-9]+(-[0-9]+)+$') {
+        throw 'Invalid originating Windows account identity. No setup changes were made.'
+    }
+    $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    if ($currentSid -ne $ExpectedUserSid) {
+        throw ('UAC elevation used a different Windows account. To protect user-scoped settings, setup was stopped before making changes. ' +
+            'This preview cannot yet install for a standard user by using another administrator account. Do not change security permissions.')
+    }
+}
+
 function Invoke-FSDLElevatedSelf([string]$ScriptPath, [string[]]$ForwardArgs) {
     $parts = New-Object System.Collections.Generic.List[string]
     $parts.Add('-NoProfile')

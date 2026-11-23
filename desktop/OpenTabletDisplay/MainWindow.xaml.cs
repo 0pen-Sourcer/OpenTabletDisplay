@@ -187,9 +187,12 @@ public partial class MainWindow : Window
         }
         try
         {
+            // Remember the attempt time, so an old RC2 failure is never
+            // presented as the outcome of a blocked UAC attempt.
+            DateTime attemptStartUtc = DateTime.UtcNow;
             _installer = SafeCommands.StartElevatedInstaller(script);
             _installing = true;
-            _lastLogTime = DateTime.UtcNow;
+            _lastLogTime = attemptStartUtc;
             InstallProgress.Visibility = Visibility.Visible;
             InstallerWarning.Visibility = Visibility.Collapsed;
             InstallDetailText.Text = "Installer started. Watching the actual Windows installation log…";
@@ -204,7 +207,7 @@ public partial class MainWindow : Window
             InstallProgress.Visibility = Visibility.Collapsed;
             await RefreshAsync();
             await RefreshLogsAsync();
-            string lastError = GetRelevantInstallFailure();
+            string lastError = GetRelevantInstallFailure(_lastLogTime);
             if (exit == 0 && _snapshot is { Installed: true, RuntimePresent: true })
             {
                 InstallDetailText.Text = "Setup completed. Connect Android and authorize USB debugging.";
@@ -240,10 +243,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private string GetRelevantInstallFailure()
+    private string GetRelevantInstallFailure(DateTime attemptStartUtc)
     {
         try
         {
+            if (!File.Exists(AppPaths.InstallLog) ||
+                File.GetLastWriteTimeUtc(AppPaths.InstallLog) < attemptStartUtc.AddSeconds(-2))
+                return "Windows did not start the installer or stopped it before logging. Check the account used for UAC approval.";
             var log = File.ReadLines(AppPaths.InstallLog).Reverse().FirstOrDefault(
                 line => line.Contains("INSTALL FAILED", StringComparison.OrdinalIgnoreCase));
             if (!string.IsNullOrWhiteSpace(log)) return log;

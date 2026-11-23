@@ -65,18 +65,13 @@ internal static class SafeCommands
     public static Process StartElevatedInstaller(string installer)
     {
         if (!File.Exists(installer)) throw new FileNotFoundException("Installer script not found", installer);
-        // This installer stores user-scoped state under the elevated account's
-        // LocalAppData. Refuse a different-identity UAC flow rather than silently
-        // modifying an administrator's profile instead of the actual user's.
+        // A UAC-filtered administrator token often lacks an enabled
+        // Administrators group. Do not reject based on token group membership.
+        // Instead, pass the originating user's SID to the elevated script,
+        // which checks it BEFORE writing any per-user files or system settings.
         using var identity = WindowsIdentity.GetCurrent();
-        var administratorSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-        if (identity.Groups is null || !identity.Groups.Contains(administratorSid))
-        {
-            throw new InvalidOperationException(
-                "This preview does not support installation from a standard Windows account using a different administrator identity. " +
-                "To avoid writing application data into another person's profile, setup was blocked. " +
-                "Do not lower Windows security or change account permissions.");
-        }
+        string originatingSid = identity.User?.Value ??
+            throw new InvalidOperationException("Could not determine Windows account identity. Setup was not started.");
         var start = new ProcessStartInfo("powershell.exe")
         {
             UseShellExecute = true, Verb = "runas",
@@ -88,6 +83,8 @@ internal static class SafeCommands
         start.ArgumentList.Add("-File");
         start.ArgumentList.Add(installer);
         start.ArgumentList.Add("-Elevated");
+        start.ArgumentList.Add("-ExpectedUserSid");
+        start.ArgumentList.Add(originatingSid);
         return Process.Start(start) ?? throw new InvalidOperationException("Windows did not start the elevated installer.");
     }
 

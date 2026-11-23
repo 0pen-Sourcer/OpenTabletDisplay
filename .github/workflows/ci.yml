@@ -35,6 +35,28 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check UAC originating-account identity guard
+        shell: powershell
+        run: |
+          . ./installer/common.ps1
+          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          Assert-FSDLInstallerIdentity $sid
+          $caught = $false
+          try {
+            Assert-FSDLInstallerIdentity 'S-1-5-18'
+          } catch {
+            if ($_.Exception.Message -notmatch 'different Windows account') { throw }
+            $caught = $true
+          }
+          if (-not $caught) { throw 'Different-account elevation was not rejected' }
+          $caught = $false
+          try {
+            Assert-FSDLInstallerIdentity 'not-a-sid'
+          } catch {
+            if ($_.Exception.Message -notmatch 'Invalid originating') { throw }
+            $caught = $true
+          }
+          if (-not $caught) { throw 'Malformed SID was accepted' }
       - name: Bootstrap installer log in a clean directory
         shell: powershell
         run: |
