@@ -16,11 +16,12 @@ After setup, normal use should be cable → Android authorization (if necessary)
 
 ## Native Windows controls
 
-- **Overview:** installation completeness, **Start/Stop Sunshine** controls, Sunshine service state, exact ROOT\MttVDD driver hardware ID, Android enrollment, and host address.
-- **Set up & connect:** elevated setup, non-fake progress, Android permissions and Moonlight onboarding.
+- **Overview:** installed-vs-connect state, **Start/Stop Sunshine** controls, Sunshine service state **and separate local endpoint health**, exact ROOT\MttVDD hardware ID, Android enrollment, and host address.
+- **Set up & connect:** one-time Windows setup; after installation, guide Android authorization and Moonlight onboarding instead of showing an install CTA. USB operations display elapsed time without inventing progress percentages.
 - **My devices:** asynchronous, bounded USB device scans, explicit serial validation and enrollment; one USB action at a time.
 - **Diagnostics:** bounded local log reads and connection doctor, never automatically uploaded, opt-in sanitized export.
 - **Preferences & help:** separate Start/Stop Sunshine controls; choose **Start automatically** (with Windows) or **Start manually** (only when requested); trusted support links, diagnostics and guarded uninstall.
+- **Audio:** Android Moonlight → Settings → Host Settings → **Play audio on PC** enables host speaker playback, but also streams audio to Android. For PC-only listening, mute Android's media volume. The desktop app does not silently rewrite Windows default audio output.
 
 Stopping Sunshine disconnects any active Moonlight stream but does not uninstall the display driver, clear Moonlight pairing, or erase Android enrollment. Selecting Manual startup does not stop an already-running stream. The app is single-instance and does not start the USB transport merely because its executable is double-clicked. The separate FSDL runtime is not intended for direct use by consumers. A bare FSDL.exe invocation displays help only.
 
