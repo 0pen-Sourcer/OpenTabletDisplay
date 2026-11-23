@@ -206,7 +206,7 @@
                         <Border Style="{StaticResource Card}" Margin="0,0,0,18">
                             <StackPanel>
                                 <TextBlock Text="PRIVACY &amp; TRUST" Style="{StaticResource Eyebrow}"/>
-                                <TextBlock Text="Security & permissions" Style="{StaticResource Heading}" Margin="0,10,0,8"/>
+                                <TextBlock Text="Security &amp; permissions" Style="{StaticResource Heading}" Margin="0,10,0,8"/>
                                 <TextBlock Text="Review the components OpenTabletDisplay uses and the permissions they require." Style="{StaticResource Muted}"/>
                                 <TextBlock Text="If security software blocks the unsigned transport engine, review the detection and request publisher verification. Never disable protection to force installation." Foreground="#F5BD7C" Margin="0,12,0,0" FontSize="13"/>
                             </StackPanel>
