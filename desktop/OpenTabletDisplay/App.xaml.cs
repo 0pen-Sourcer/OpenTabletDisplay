@@ -33,7 +33,8 @@ public partial class App : Application
             MessageBox.Show(
                 result == 0
                     ? "OpenTabletDisplay removal completed. A Windows restart may finish deleting files that were open."
-                    : "Removal could not be completed. No unverified dependencies were removed. Review the uninstall log in your Windows temporary folder.",
+                    : "Removal could not be completed. Some selected changes might already have taken effect. Review the details at:\n" +
+                      (NativeRemove.LastLogPath ?? "No uninstall log was created."),
                 "OpenTabletDisplay", MessageBoxButton.OK,
                 result == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
             Shutdown(result);
