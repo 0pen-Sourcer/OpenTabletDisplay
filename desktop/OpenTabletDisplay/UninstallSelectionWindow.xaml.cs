@@ -7,7 +7,7 @@ public partial class UninstallSelectionWindow : Window
     public bool RemoveSunshine => SunshineCheck.IsChecked == true;
     public bool RemoveDriver => DriverCheck.IsChecked == true;
 
-    public UninstallSelectionWindow(RemovalCapabilities available)
+    internal UninstallSelectionWindow(RemovalCapabilities available)
     {
         InitializeComponent();
         SunshineCheck.IsEnabled = available.SunshineAllowed;
