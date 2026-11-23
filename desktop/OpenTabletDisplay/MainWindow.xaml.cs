@@ -108,6 +108,12 @@ public partial class MainWindow : Window
         if (name == "Diagnostics") _ = RefreshLogsAsync();
     }
 
+    public void NavigateToUninstall()
+    {
+        ShowPage("Settings");
+        UninstallButton.Focus();
+    }
+
     private void NavOverview_Click(object sender, RoutedEventArgs e) => ShowPage("Overview");
     private void NavSetup_Click(object sender, RoutedEventArgs e) => ShowPage("Setup");
     private void NavDevices_Click(object sender, RoutedEventArgs e) => ShowPage("Devices");
