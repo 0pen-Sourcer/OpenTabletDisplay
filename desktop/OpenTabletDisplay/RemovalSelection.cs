@@ -40,7 +40,8 @@ internal static class RemovalSelection
             if (!File.Exists(AppPaths.InstallState)) return null;
             var state = JsonSerializer.Deserialize<InstalledRecord>(File.ReadAllText(AppPaths.InstallState));
             // Do not trust records with missing identity or ownership fields.
-            return state is { Version.Length: > 0 } ? state : null;
+            return state is { Version.Length: > 0, VddInstances: not null,
+                SunshineChanges: not null } ? state : null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException) { return null; }
     }
@@ -88,7 +89,8 @@ internal static class RemovalSelection
                     matches.Add(guid.ToString("B").ToUpperInvariant());
                 }
             }
-            catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+            catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException
+                                       or IOException or FormatException or InvalidCastException)
             {
                 return null;
             }
