@@ -20,6 +20,7 @@ internal static class NativeRemove
     private const uint DelayUntilReboot=0x4;
     internal const int IdentityMismatch=73;
     internal const int Failed=75;
+    internal static string? LastLogPath { get; private set; }
 
     internal static async Task<int> RunAsync(
         string expectedSid, bool removeSunshine = false, bool removeDriver = false)
@@ -44,6 +45,7 @@ internal static class NativeRemove
             : Array.Empty<string>();
         if (removeSunshine && sunshineMsi is null) return Failed;
         string logPath=Path.Combine(Path.GetTempPath(),"OpenTabletDisplay-uninstall-"+Guid.NewGuid().ToString("N")+".log");
+        LastLogPath = logPath;
         void Log(string msg)=>File.AppendAllText(logPath,DateTime.Now.ToString("O")+" "+msg+"\r\n",Encoding.UTF8);
         try
         {
