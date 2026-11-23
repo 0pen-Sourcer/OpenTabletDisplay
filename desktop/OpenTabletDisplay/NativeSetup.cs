@@ -42,7 +42,7 @@ internal static class SunshineConfiguration
 {
     internal static readonly Dictionary<string,string> Values=new(StringComparer.OrdinalIgnoreCase)
     {
-        ["dd_configuration_option"]="ensure_primary",
+        ["dd_configuration_option"]="ensure_active",
         ["dd_resolution_option"]="auto",
         ["dd_refresh_rate_option"]="auto",
         ["dd_config_revert_on_disconnect"]="enabled",
@@ -84,7 +84,7 @@ internal static class SunshineConfiguration
         if(value is not null && !written)result.Add(key+" = "+value);
         return result.ToArray();
     }
-    public static (string[] lines,List<SunshineChange> changes) Apply(string[] original,string id)
+    public static (string[] lines,List<SunshineChange> changes) Apply(string[] original,string id, IEnumerable<SunshineChange>? priorChanges=null)
     {
         if(!Regex.IsMatch(id,@"^\{[0-9a-fA-F-]{36}\}$"))
             throw new InvalidDataException("Invalid Sunshine display identifier.");
@@ -95,8 +95,18 @@ internal static class SunshineConfiguration
         foreach(var pair in desired)
         {
             var before=Get(lines,pair.Key);
+            var prior=priorChanges?.FirstOrDefault(change =>
+                string.Equals(change.Key,pair.Key,StringComparison.OrdinalIgnoreCase));
+            bool stillAppOwned=prior is not null &&
+                before.present==prior.AppliedPresent &&
+                (!before.present || string.Equals(before.value,prior.AppliedValue,StringComparison.Ordinal));
+            // On an upgrade keep the original pre-install value, not the
+            // prior release's own 'ensure_primary' setting. Do not mistake
+            // a manual user edit for a setting owned by OpenTabletDisplay.
+            var originalPresent=stillAppOwned ? prior!.OriginalPresent : before.present;
+            var originalValue=stillAppOwned ? prior!.OriginalValue : before.value;
             changes.Add(new SunshineChange{
-                Key=pair.Key,OriginalPresent=before.present,OriginalValue=before.value,
+                Key=pair.Key,OriginalPresent=originalPresent,OriginalValue=originalValue,
                 AppliedPresent=true,AppliedValue=pair.Value});
             lines=Set(lines,pair.Key,pair.Value);
         }
@@ -342,7 +352,7 @@ internal static class NativeSetup
             string backup=Path.Combine(backupDir,"sunshine.conf."+
                 DateTime.Now.ToString("yyyyMMdd-HHmmss")+".bak");
             File.Copy(cfg,backup,true);
-            var result=SunshineConfiguration.Apply(initial,displayId);
+            var result=SunshineConfiguration.Apply(initial,displayId,old?.SunshineChanges);
             changes=result.changes;
             SunshineConfiguration.WriteAtomic(cfg,result.lines);
             applied=true;
@@ -533,6 +543,20 @@ internal static class NativeSetup
         }
         var original=new[]{"encoder = nvenc","custom_option = keep","dd_resolution_option = manual"};
         var applied=SunshineConfiguration.Apply(original,"{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}");
+        if(SunshineConfiguration.Get(applied.lines,"dd_configuration_option").value != "ensure_active")
+            throw new InvalidOperationException("Primary display regression: tablet must never be forced primary.");
+        var prior = new [] { new SunshineChange {
+            Key="dd_configuration_option", OriginalPresent=false,
+            AppliedPresent=true, AppliedValue="ensure_primary"
+        } };
+        var migrated=SunshineConfiguration.Apply(
+            new [] { "dd_configuration_option = ensure_primary", "custom_option = keep" },
+            "{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}",prior);
+        var reverted=SunshineConfiguration.RestoreChangedOnly(migrated.lines,migrated.changes);
+        if(SunshineConfiguration.Get(reverted,"dd_configuration_option").present)
+            throw new InvalidOperationException("Upgrade lost the original display-primary setting.");
+        if(SunshineConfiguration.Get(reverted,"custom_option").value!="keep")
+            throw new InvalidOperationException("Upgrade touched an unrelated Sunshine setting.");
         if(!SunshineConfiguration.Get(applied.lines,"output_name").present)
             throw new InvalidOperationException("Native Sunshine config test failed: output device absent.");
         var changed=SunshineConfiguration.Set(applied.lines,"custom_option","customized");
