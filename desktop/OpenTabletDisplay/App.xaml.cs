@@ -57,6 +57,8 @@ public partial class App : Application
         }
         MainWindow = new MainWindow();
         MainWindow.Show();
+        if (e.Args.Contains("--uninstall", StringComparer.OrdinalIgnoreCase))
+            ((MainWindow)MainWindow).NavigateToUninstall();
     }
 
     protected override void OnExit(ExitEventArgs e)
