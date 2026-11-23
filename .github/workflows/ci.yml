@@ -133,6 +133,15 @@ jobs:
             }
             if ($smoke.ExitCode -ne 0) { throw ('Native WPF smoke test failed: exit ' + $smoke.ExitCode) }
           } finally { $smoke.Dispose() }
+          # Wrong-account UAC must be rejected before ANY installer writes.
+          $deny = Start-Process -FilePath $appExe -ArgumentList @('--native-install','S-1-5-18') -PassThru
+          try {
+            if (-not $deny.WaitForExit(25000)) {
+              $deny.Kill()
+              throw 'Identity-mismatch native setup did not fail closed.'
+            }
+            if ($deny.ExitCode -ne 73) { throw ('Expected identity mismatch exit 73, got ' + $deny.ExitCode) }
+          } finally { $deny.Dispose() }
           $manifestRows = @(Get-Content (Join-Path $testRoot 'SHA256SUMS.txt'))
           foreach ($row in $manifestRows) {
             if ($row -notmatch '^([0-9a-f]{64})  (.+)$') { throw ('Invalid SHA256 manifest entry: ' + $row) }
