@@ -72,20 +72,39 @@ internal static class SafeCommands
         using var identity = WindowsIdentity.GetCurrent();
         string originatingSid = identity.User?.Value ??
             throw new InvalidOperationException("Could not determine Windows account identity. Setup was not started.");
-        var start = new ProcessStartInfo("powershell.exe")
+        bool isSetup = string.Equals(Path.GetFileName(installer), "install.ps1",
+            StringComparison.OrdinalIgnoreCase);
+        // The *compiled desktop app* is its own fixed-purpose elevated helper:
+        // it records launch failures that would otherwise be lost in a hidden
+        // PowerShell process. No arbitrary user-supplied script is accepted.
+        if (isSetup)
+        {
+            string desktopExe = Environment.ProcessPath ??
+                throw new InvalidOperationException("Could not identify this executable.");
+            var start = new ProcessStartInfo(desktopExe)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+                WorkingDirectory = Path.GetDirectoryName(desktopExe)!
+            };
+            start.ArgumentList.Add(ElevatedBootstrap.Argument);
+            start.ArgumentList.Add(originatingSid);
+            return Process.Start(start) ?? throw new InvalidOperationException("Windows did not start the elevated helper.");
+        }
+        // Uninstall stays a separately approved operation. It cannot run the
+        // in-place EXE bootstrap because that would lock the EXE while removing it.
+        var uninstall = new ProcessStartInfo(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
+                "WindowsPowerShell", "v1.0", "powershell.exe"))
         {
             UseShellExecute = true, Verb = "runas",
             WorkingDirectory = Path.GetDirectoryName(installer)!,
-            WindowStyle = ProcessWindowStyle.Hidden
+            WindowStyle = ProcessWindowStyle.Normal
         };
-        start.ArgumentList.Add("-NoProfile");
-        start.ArgumentList.Add("-NonInteractive");
-        start.ArgumentList.Add("-File");
-        start.ArgumentList.Add(installer);
-        start.ArgumentList.Add("-Elevated");
-        start.ArgumentList.Add("-ExpectedUserSid");
-        start.ArgumentList.Add(originatingSid);
-        return Process.Start(start) ?? throw new InvalidOperationException("Windows did not start the elevated installer.");
+        foreach (var arg in new[] { "-NoProfile", "-NonInteractive", "-File",
+                                    installer, "-Elevated", "-ExpectedUserSid", originatingSid })
+            uninstall.ArgumentList.Add(arg);
+        return Process.Start(uninstall) ?? throw new InvalidOperationException("Windows did not start the elevated uninstaller.");
     }
 
     public static bool IsValidAndroidSerial(string? value) =>
