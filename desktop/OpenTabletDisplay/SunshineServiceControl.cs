@@ -34,6 +34,7 @@ internal static class SunshineServiceControl
     internal static bool IsPermissionDenied(Exception ex) =>
         ex is UnauthorizedAccessException or SecurityException ||
         ex is Win32Exception win && win.NativeErrorCode is 5 or 1314 ||
+        ex is ManagementException wmi && wmi.ErrorCode == ManagementStatus.AccessDenied ||
         (uint)ex.HResult == 0x80070005 ||
         ex.InnerException is not null && IsPermissionDenied(ex.InnerException);
 
