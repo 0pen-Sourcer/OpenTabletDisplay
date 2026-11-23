@@ -135,7 +135,7 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
-                        <Border Style="{StaticResource Card}">
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,18">
                             <StackPanel>
                                 <TextBlock Text="03   PAIR MOONLIGHT" Style="{StaticResource Eyebrow}"/>
                                 <TextBlock Text="Open Moonlight on your Android device." Style="{StaticResource Heading}" Margin="0,11,0,8"/>
@@ -152,6 +152,29 @@
                                     <Button Content="Get Moonlight" Style="{StaticResource SecondaryButton}" Click="MoonlightButton_Click" Margin="0,0,10,0"/>
                                     <Button Content="Sunshine settings" Style="{StaticResource SecondaryButton}" Click="SunshineButton_Click"/>
                                 </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                            <StackPanel>
+                                <TextBlock Text="04   ARRANGE YOUR SCREENS" Style="{StaticResource Eyebrow}"/>
+                                <TextBlock Text="Keep your monitor for games, tablet for everything else." Style="{StaticResource Heading}" Margin="0,10,0,8" TextWrapping="Wrap"/>
+                                <TextBlock Text="Choose what Windows treats as the main display while Sunshine streams. Your PC monitor is the recommended default." Style="{StaticResource Muted}"/>
+                                <TextBlock x:Name="OnboardDisplayModeText" Text="Current choice: Checking…" Style="{StaticResource Muted}" Margin="0,12,0,0"/>
+                                <WrapPanel Margin="0,15,0,0">
+                                    <Button x:Name="OnboardKeepPcButton" Content="Keep PC monitor primary (recommended)" Style="{StaticResource PrimaryButton}" Click="KeepPcPrimary_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                    <Button x:Name="OnboardMakeTabletButton" Content="Make tablet primary during streaming" Style="{StaticResource SecondaryButton}" Click="MakeTabletPrimary_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                </WrapPanel>
+                                <TextBlock Text="In Windows Display settings: click Identify, choose Extend these displays, arrange 1 and 2, and select the PC monitor as the main display if that's your preference." Style="{StaticResource Muted}" Margin="0,5,0,12"/>
+                                <Button Content="Open Windows display settings" Style="{StaticResource SecondaryButton}" Click="OpenWindowsDisplaySettings_Click" HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="05   MAKE IT YOURS" Style="{StaticResource Eyebrow}"/>
+                                <TextBlock Text="Move windows, keep your audio." Style="{StaticResource Heading}" Margin="0,10,0,8"/>
+                                <TextBlock Text="Click a window and press Win + Shift + Left/Right Arrow to move it between screens. Chrome and Incognito may remember different positions." Style="{StaticResource Muted}"/>
+                                <TextBlock Text="To capture only one screen, press Win + Shift + S, then select a rectangle or a single window." Style="{StaticResource Muted}" Margin="0,9,0,0"/>
+                                <TextBlock Text="For sound on PC speakers: on your tablet enable Moonlight → Settings → Host Settings → Play audio on PC, then mute the tablet's media volume." Style="{StaticResource Muted}" Margin="0,9,0,0"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -228,6 +251,19 @@
                                     <Button x:Name="SunshineManualButton" Content="Start manually" Style="{StaticResource SecondaryButton}" Click="SunshineManual_Click" Margin="0,0,10,10" IsEnabled="False"/>
                                 </WrapPanel>
                                 <TextBlock Text="This changes only Sunshine's Windows service setting. It doesn't start or stop your stream immediately." Style="{StaticResource Muted}" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,18">
+                            <StackPanel>
+                                <TextBlock Text="DISPLAY BEHAVIOR" Style="{StaticResource Eyebrow}"/>
+                                <TextBlock Text="Choose your main screen" Style="{StaticResource Heading}" Margin="0,10,0,8"/>
+                                <TextBlock Text="Keep games and new windows on your PC monitor by default, or let Moonlight temporarily promote the tablet to the main display." Style="{StaticResource Muted}"/>
+                                <TextBlock x:Name="DisplayModeStatusText" Text="Checking your current display preference…" Style="{StaticResource Muted}" Margin="0,12,0,0"/>
+                                <WrapPanel Margin="0,15,0,0">
+                                    <Button x:Name="DisplayKeepPcButton" Content="Keep PC monitor primary" Style="{StaticResource PrimaryButton}" Click="KeepPcPrimary_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                    <Button x:Name="DisplayMakeTabletButton" Content="Make tablet primary during streaming" Style="{StaticResource SecondaryButton}" Click="MakeTabletPrimary_Click" Margin="0,0,10,10" IsEnabled="False"/>
+                                </WrapPanel>
+                                <TextBlock Text="Changing this setting may briefly restart Sunshine and disconnect an active Moonlight session. It does not install drivers or reset device pairing." Style="{StaticResource Muted}" Margin="0,5,0,0"/>
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource Card}" Margin="0,0,0,18">
