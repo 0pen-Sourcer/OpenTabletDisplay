@@ -85,6 +85,8 @@ internal static class RemovalSelection
                         StringComparison.OrdinalIgnoreCase)) continue;
                     if (!string.Equals(key.GetValue("DisplayVersion")?.ToString(),
                         SetupConstants.SunshineVersion, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!string.Equals(key.GetValue("Publisher")?.ToString(), "LizardByte",
+                        StringComparison.OrdinalIgnoreCase)) continue;
                     if (Convert.ToInt32(key.GetValue("WindowsInstaller", 0)) != 1) continue;
                     matches.Add(guid.ToString("B").ToUpperInvariant());
                 }
