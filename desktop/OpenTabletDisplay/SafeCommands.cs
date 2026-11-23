@@ -62,8 +62,14 @@ internal static class SafeCommands
         }
     }
 
-    public static Process StartElevatedAction(string action)
+    public static Process StartElevatedAction(string action, IReadOnlyList<string>? removeFlags = null)
     {
+        removeFlags ??= Array.Empty<string>();
+        if (action != "--native-remove" && removeFlags.Count > 0)
+            throw new ArgumentException("Only uninstallation supports component selection.");
+        if (action == "--native-remove" &&
+            !RemovalSelection.TryParse(removeFlags.ToArray(), out _, out _))
+            throw new ArgumentException("Invalid uninstall component selection.");
         if (action is not ("--native-install" or "--native-remove") &&
             !SunshineServiceControl.IsAllowed(action) &&
             !SunshineDisplayPreference.IsAllowed(action))
@@ -81,6 +87,7 @@ internal static class SafeCommands
         };
         start.ArgumentList.Add(action);
         start.ArgumentList.Add(sid);
+        foreach (string flag in removeFlags) start.ArgumentList.Add(flag);
         return Process.Start(start)??throw new InvalidOperationException(
             "Windows did not start the administrator-approved action.");
     }
