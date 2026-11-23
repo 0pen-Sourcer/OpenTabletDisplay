@@ -781,7 +781,9 @@ public partial class MainWindow : Window
         if (_busy || _installing || _sunshineBusy || _displayBusy) return;
         if (!File.Exists(AppPaths.InstallState)) { Alert("No installed integration was found."); return; }
         if (MessageBox.Show(this,
-                "This will remove OpenTabletDisplay and restore only app-owned Sunshine settings. Existing Sunshine and virtual-display drivers will remain. After UAC approval the window will close so Windows can remove the application's files.\n\nContinue?",
+                "Remove OpenTabletDisplay, its USB integration, and its background tasks?\n\n" +
+                "Sunshine and Virtual Display Driver will REMAIN INSTALLED. Sunshine may continue running and showing notifications after this app is removed.\n\n" +
+                "To remove Sunshine too, uninstall it separately from Windows Installed apps.\n\nContinue?",
                 "Uninstall OpenTabletDisplay", MessageBoxButton.YesNo, MessageBoxImage.Warning)
             != MessageBoxResult.Yes) return;
         try
