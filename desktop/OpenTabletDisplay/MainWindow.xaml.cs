@@ -27,6 +27,8 @@ public partial class MainWindow : Window
     private Process? _installer;
     private bool _installing;
     private bool _busy;
+    private bool _sunshineBusy;
+    private string _sunshineStartupMode = "Unavailable";
     private bool _refreshing;
     private bool _scanning;
     private bool _closing;
@@ -96,10 +98,10 @@ public partial class MainWindow : Window
         }
         var labels = name switch {
             "Overview" => ("YOUR WORKSPACE", "Overview", "Your second monitor, without a second monitor."),
-            "Setup" => ("GET STARTED", "Set up & connect", "Every step visible. Every permission intentional."),
+            "Setup" => ("GET STARTED", "Set up & connect", "Install the display components and connect your tablet."),
             "Devices" => ("ANDROID DEVICES", "My devices", "Select an authorized Android device for the USB connection."),
             "Diagnostics" => ("SYSTEM INSIGHT", "Diagnostics", "Useful errors and complete local control."),
-            _ => ("PREFERENCES", "Controls & help", "Reliable settings, transparent security.")
+            _ => ("PREFERENCES", "Controls & help", "Manage streaming and your installation.")
         };
         PageEyebrow.Text = labels.Item1;
         PageHeading.Text = labels.Item2;
@@ -132,13 +134,19 @@ public partial class MainWindow : Window
         RefreshButton.IsEnabled = false;
         try
         {
-            var snapshot = await Task.Run(SystemInspector.Read);
+            var statusTask = Task.Run(SystemInspector.Read);
+            var modeTask = Task.Run(SunshineServiceControl.ReadStartupMode);
+            await Task.WhenAll(statusTask, modeTask);
+            var snapshot = await statusTask;
+            _sunshineStartupMode = await modeTask;
             if (_closing) return;
             _snapshot = snapshot;
             AppStatusText.Text = snapshot.Installed ? snapshot.RuntimePresent ? "Installed" : "Needs repair"
                 : snapshot.RuntimePresent ? "Setup incomplete" : "Not installed";
             AppDetailText.Text = snapshot.Detail;
             SunshineStatusText.Text = snapshot.Sunshine;
+            SunshineServiceDetail.Text = "Service: " + snapshot.Sunshine;
+            SunshineStartupText.Text = "Current startup: " + _sunshineStartupMode;
             DriverStatusText.Text = snapshot.Driver;
             AndroidStatusText.Text = snapshot.Enrolled ? "USB device enrolled" : "No USB device enrolled";
             HostAddressText.Text = string.IsNullOrEmpty(snapshot.Host) ? "Not yet connected" : snapshot.Host;
@@ -155,7 +163,7 @@ public partial class MainWindow : Window
                 : new SolidColorBrush(Color.FromRgb(243, 185, 100));
             UpdateActions();
 
-            if (!_installing && !_busy)
+            if (!_installing && !_busy && !_sunshineBusy)
                 Footer("Sunshine: " + snapshot.Sunshine + "  •  Virtual display: " + snapshot.Driver);
         }
         catch (Exception ex)
@@ -172,20 +180,126 @@ public partial class MainWindow : Window
     private void UpdateActions()
     {
         var s = _snapshot;
-        bool baseReady = s is not null && SystemInspector.ReadyForUsb(s, _installing || _busy);
-        InstallButton.IsEnabled = !_installing && !_busy && NativePackage.Discover() is not null;
+        bool blocked = _installing || _busy || _sunshineBusy;
+        bool baseReady = s is not null && SystemInspector.ReadyForUsb(s, blocked);
+        bool serviceReady = !blocked && s is { Installed: true } &&
+            (s.Sunshine is "Running" or "Service stopped");
+        bool running = serviceReady && s!.Sunshine == "Running";
+        bool stopped = serviceReady && s!.Sunshine == "Service stopped";
+
+        SunshineStartButton.IsEnabled = stopped;
+        SunshineStopButton.IsEnabled = running;
+        SunshineSettingsStartButton.IsEnabled = stopped;
+        SunshineSettingsStopButton.IsEnabled = running;
+        SunshineAutomaticButton.IsEnabled = serviceReady && _sunshineStartupMode != "Automatic";
+        SunshineManualButton.IsEnabled = serviceReady && _sunshineStartupMode != "Manual";
+
+        InstallButton.IsEnabled = !blocked && NativePackage.Discover() is not null;
         CheckUsbButton.IsEnabled = baseReady && !_scanning;
         ScanDeviceButton.IsEnabled = baseReady && !_scanning;
-        EnrollButton.IsEnabled = baseReady && !_scanning && DeviceList.SelectedItem is AndroidDevice d && d.State == "device";
+        EnrollButton.IsEnabled = baseReady && !_scanning &&
+            DeviceList.SelectedItem is AndroidDevice d && d.State == "device";
         StartUsbButton.IsEnabled = baseReady;
-        StopUsbButton.IsEnabled = !_installing && !_busy && s is { Installed: true, RuntimePresent: true };
-        DoctorButton.IsEnabled = !_installing && !_busy && s is { RuntimePresent: true };
-        UninstallButton.IsEnabled = !_installing && !_busy && File.Exists(AppPaths.InstallState);
+        StopUsbButton.IsEnabled = !blocked && s is { Installed: true, RuntimePresent: true };
+        DoctorButton.IsEnabled = !blocked && s is { RuntimePresent: true };
+        UninstallButton.IsEnabled = !blocked && File.Exists(AppPaths.InstallState);
+    }
+
+    private async void StartSunshine_Click(object sender, RoutedEventArgs e) =>
+        await RunSunshineActionAsync(SunshineServiceControl.Start);
+
+    private async void StopSunshine_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _installing || _sunshineBusy) return;
+        if (MessageBox.Show(this,
+                "Stop Sunshine? This disconnects the current Moonlight stream. " +
+                "Your tablet pairing, USB setup and virtual-display driver stay installed.",
+                "Stop Sunshine", MessageBoxButton.YesNo, MessageBoxImage.Question)
+            != MessageBoxResult.Yes) return;
+        await RunSunshineActionAsync(SunshineServiceControl.Stop);
+    }
+
+    private async void SunshineAutomatic_Click(object sender, RoutedEventArgs e) =>
+        await RunSunshineActionAsync(SunshineServiceControl.Automatic);
+
+    private async void SunshineManual_Click(object sender, RoutedEventArgs e) =>
+        await RunSunshineActionAsync(SunshineServiceControl.Manual);
+
+    private async Task RunSunshineActionAsync(string action)
+    {
+        if (_installing || _busy || _sunshineBusy ||
+            !SunshineServiceControl.IsAllowed(action)) return;
+        if (_snapshot is not { Installed: true } ||
+            _snapshot.Sunshine is not ("Running" or "Service stopped"))
+        {
+            Alert("Sunshine's Windows service isn't available. Open Diagnostics for details.");
+            return;
+        }
+
+        _sunshineBusy = true;
+        UpdateActions();
+        Footer("Applying Sunshine service setting…");
+        DateTime attempt = DateTime.UtcNow;
+        try
+        {
+            try
+            {
+                // Try the service's existing Windows permissions first.
+                // If admin approval is required, use an allowlisted native UAC action.
+                await SunshineServiceControl.ChangeAsync(action);
+            }
+            catch (Exception ex) when (SunshineServiceControl.IsPermissionDenied(ex))
+            {
+                using var elevated = SafeCommands.StartElevatedAction(action);
+                await elevated.WaitForExitAsync();
+                if (elevated.ExitCode != 0)
+                {
+                    string reason = elevated.ExitCode == SunshineServiceControl.IdentityMismatch
+                        ? "Windows approved a different account or denied administrator access. No service change was made."
+                        : "Windows could not change the Sunshine service.";
+                    try
+                    {
+                        if (elevated.ExitCode != SunshineServiceControl.IdentityMismatch &&
+                            File.Exists(SunshineServiceControl.LogPath) &&
+                            File.GetLastWriteTimeUtc(SunshineServiceControl.LogPath) >= attempt.AddSeconds(-2))
+                        {
+                            string? last = File.ReadLines(SunshineServiceControl.LogPath).LastOrDefault();
+                            if (!string.IsNullOrWhiteSpace(last)) reason = last;
+                        }
+                    }
+                    catch (Exception logError) when (logError is IOException or UnauthorizedAccessException) { }
+                    throw new InvalidOperationException(reason);
+                }
+            }
+
+            Footer(action switch {
+                SunshineServiceControl.Start => "Sunshine started. Moonlight can connect.",
+                SunshineServiceControl.Stop => "Sunshine stopped. Streaming is off.",
+                SunshineServiceControl.Automatic => "Sunshine will start with Windows.",
+                _ => "Sunshine will start manually."
+            });
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            Footer("Sunshine change cancelled. Existing service settings were kept.");
+        }
+        catch (Exception ex)
+        {
+            Footer("Sunshine operation failed. Existing installation was kept.");
+            Alert("Unable to change Sunshine: " + ex.Message +
+                "\n\nOpen Diagnostics for details. You don't need to reinstall Sunshine.");
+        }
+        finally
+        {
+            _sunshineBusy = false;
+            await RefreshAsync();
+            UpdateActions();
+        }
     }
 
     private async void InstallButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_installing || _busy) return;
+        if (_installing || _busy || _sunshineBusy) return;
         if (NativePackage.Discover() is null)
         {
             Alert("The extracted release is incomplete. Download the full Windows ZIP, not GitHub's Source code ZIP.");
@@ -302,8 +416,8 @@ public partial class MainWindow : Window
     private async void CheckUsbButton_Click(object sender, RoutedEventArgs e) => await ScanDevicesAsync();
     private async Task ScanDevicesAsync()
     {
-        if (_scanning || _installing || _busy || _snapshot is null ||
-            !SystemInspector.ReadyForUsb(_snapshot, _installing || _busy))
+        if (_scanning || _installing || _busy || _sunshineBusy || _snapshot is null ||
+            !SystemInspector.ReadyForUsb(_snapshot, _installing || _busy || _sunshineBusy))
         {
             Footer("Finish Windows installation before checking the USB transport.");
             return;
@@ -364,12 +478,12 @@ public partial class MainWindow : Window
 
     private async Task RunTransportCommandAsync(string command, string? serial = null)
     {
-        if (_busy || _installing || _snapshot is not { Installed: true, RuntimePresent: true })
+        if (_busy || _installing || _sunshineBusy || _snapshot is not { Installed: true, RuntimePresent: true })
         {
             Alert("Windows setup is still running or incomplete. Finish setup before using the USB transport.");
             return;
         }
-        if (command != "stop" && !SystemInspector.ReadyForUsb(_snapshot, _installing || _busy))
+        if (command != "stop" && !SystemInspector.ReadyForUsb(_snapshot, _installing || _busy || _sunshineBusy))
         {
             Alert("Sunshine, USB tools or the virtual-display driver is not ready. Run diagnostics before starting a connection.");
             return;
@@ -410,7 +524,7 @@ public partial class MainWindow : Window
 
     private async void DoctorButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_busy || _installing || !File.Exists(AppPaths.RuntimeExe)) return;
+        if (_busy || _installing || _sunshineBusy || !File.Exists(AppPaths.RuntimeExe)) return;
         _busy = true;
         UpdateActions();
         Footer("Running local connection diagnostics…");
@@ -503,7 +617,7 @@ public partial class MainWindow : Window
 
     private void UninstallButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_busy || _installing) return;
+        if (_busy || _installing || _sunshineBusy) return;
         if (!File.Exists(AppPaths.InstallState)) { Alert("No installed integration was found."); return; }
         if (MessageBox.Show(this,
                 "This will remove OpenTabletDisplay and restore only app-owned Sunshine settings. Existing Sunshine and virtual-display drivers will remain. After UAC approval the window will close so Windows can remove the application's files.\n\nContinue?",
