@@ -14,12 +14,12 @@ public partial class App : Application
     {
         DispatcherUnhandledException += OnApplicationException;
         base.OnStartup(e);
-        if (e.Args.Length == 2 &&
-            string.Equals(e.Args[0], ElevatedBootstrap.Argument, StringComparison.Ordinal))
+        if (e.Args.Length == 2 && e.Args[0] is "--native-install" or "--native-remove")
         {
-            // This fixed-purpose UAC helper has no user-facing WPF window.
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            int result = await ElevatedBootstrap.RunAsync(e.Args[1]);
+            int result = e.Args[0] == "--native-install"
+                ? await NativeSetup.InstallAsync(e.Args[1])
+                : await NativeRemove.RunAsync(e.Args[1]);
             Shutdown(result);
             return;
         }
@@ -34,6 +34,9 @@ public partial class App : Application
                 var sanitized = DiagnosticReader.Sanitize("password: veryprivate 192.168.1.1");
                 if (sanitized.Contains("veryprivate") || sanitized.Contains("192.168.1.1"))
                     throw new InvalidOperationException("Diagnostic redaction regression.");
+                NativeSetup.SelfTest();
+                // Offline package-integrity and policy-sensitive setup paths
+                // are checked by CI; never run privileged installation here.
                 var window = new MainWindow();
                 if (window.Title != "OpenTabletDisplay")
                     throw new InvalidOperationException("WPF main window title regression.");
