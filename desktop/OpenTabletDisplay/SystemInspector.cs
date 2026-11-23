@@ -23,24 +23,7 @@ internal static class AppPaths
     public static string SessionState => Path.Combine(Root, "runtime", "state.json");
     public static string LogsDirectory => Path.Combine(Root, "logs");
 
-    public static string? InstallerScript
-    {
-        get
-        {
-            var current = Path.Combine(AppContext.BaseDirectory, "installer", "install.ps1");
-            if (File.Exists(current)) return current;
-            var cached = Path.Combine(Root, "package", "installer", "install.ps1");
-            return File.Exists(cached) ? cached : null;
-        }
-    }
-    public static string? UninstallScript
-    {
-        get
-        {
-            var installed = Path.Combine(Root, "uninstall.ps1");
-            return File.Exists(installed) ? installed : null;
-        }
-    }
+
 }
 
 internal sealed record SystemSnapshot(
