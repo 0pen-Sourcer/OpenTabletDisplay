@@ -1,4 +1,4 @@
-# Native OpenTabletDisplay 3.3 release candidate
+# OpenTabletDisplay 3.4 native setup preview
 
 OpenTabletDisplay's everyday desktop interface is now a **compiled, self-contained .NET 10 WPF executable**. It is not a PowerShell-hosted window. Users need no separate .NET installation. The app starts as a normal Windows user; only installer and uninstaller operations request Windows administrator approval.
 
@@ -27,7 +27,7 @@ The app is single-instance and does not start the USB transport merely because i
 ## Security commitments
 
 - No AVG/Defender disabling, antivirus exclusions, quarantine restores, security bypass, silent Android RSA trust, or silent VPN permissions.
-- Compiled WPF GUI is not hosted by powershell.exe. **Windows setup still uses elevated PowerShell scripts** to install pinned Sunshine and virtual-display dependencies, without changing PowerShell execution policy; restrictive Windows script policies are respected and may block setup until signed/native installer support is available. Removing PowerShell from this privileged setup path entirely will require a separately audited native installer.
+- The user-facing GUI **and administrator-approved setup/uninstall path** are implemented in compiled .NET 10 code. The packaged Windows ZIP contains no PowerShell or batch installer scripts. Native setup verifies pinned hashes, requires Windows-trusted upstream signatures, and refuses account-identity mismatches. Windows PowerShell execution policy is neither inspected nor altered during setup.
 - Exact pinned download SHA-256 checks and valid upstream signatures where supplied; local package manifest verifies extraction integrity.
 - Main app runs unelevated; UAC is user-triggered. Commands execute through fixed paths and .NET argument lists, not arbitrary shell strings.
 - No remote telemetry, personal data uploads or cloud login. Logs can contain local device information; exported reports have basic redaction but must still be reviewed.
@@ -37,7 +37,7 @@ The app is single-instance and does not start the USB transport merely because i
 ## Current limitations
 
 - This app targets Windows 10/11 x64 and Android Moonlight/ADB. It does not support iOS, Linux/macOS host, or every Android ROM.
-- First setup requires network access to retrieve pinned verified Sunshine, VDD, NefCon, Android Platform Tools and gnirehtet.
+- First setup requires network access for pinned Sunshine, VDD/NefCon (if VDD absent), Android Platform Tools, and gnirehtet. The native installer checks the USB transport helper before changing Sunshine or the display driver.
 - Real Moonlight video, touch, protected-content behavior, GPU encoders, multi-monitor layout, USB reconnect, hibernation and driver rollback **must be validated on physical hardware**, not inferred from CI.
 - Standard Windows accounts requiring different administrator credentials can have per-user setup ownership issues. That multi-user elevation path is NOT certified until tested.
 - The application's own publisher certificate is not yet configured. Do not tell users to weaken Windows security.
