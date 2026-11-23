@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private string _currentPage = "Overview";
     private SystemSnapshot? _snapshot;
     private DateTime _lastLogTime = DateTime.MinValue;
+    private DateTime _attemptStartUtc = DateTime.MinValue;
     private readonly List<AndroidDevice> _devices = new();
 
     public MainWindow()
@@ -189,10 +190,10 @@ public partial class MainWindow : Window
         {
             // Remember the attempt time, so an old RC2 failure is never
             // presented as the outcome of a blocked UAC attempt.
-            DateTime attemptStartUtc = DateTime.UtcNow;
+            _attemptStartUtc = DateTime.UtcNow;
             _installer = SafeCommands.StartElevatedInstaller(script);
             _installing = true;
-            _lastLogTime = attemptStartUtc;
+            _lastLogTime = _attemptStartUtc;
             InstallProgress.Visibility = Visibility.Visible;
             InstallerWarning.Visibility = Visibility.Collapsed;
             InstallDetailText.Text = "Installer started. Watching the actual Windows installation log…";
@@ -207,7 +208,7 @@ public partial class MainWindow : Window
             InstallProgress.Visibility = Visibility.Collapsed;
             await RefreshAsync();
             await RefreshLogsAsync();
-            string lastError = GetRelevantInstallFailure(_lastLogTime);
+            string lastError = GetRelevantInstallFailure(_attemptStartUtc, exit);
             if (exit == 0 && _snapshot is { Installed: true, RuntimePresent: true })
             {
                 InstallDetailText.Text = "Setup completed. Connect Android and authorize USB debugging.";
@@ -243,13 +244,35 @@ public partial class MainWindow : Window
         }
     }
 
-    private string GetRelevantInstallFailure(DateTime attemptStartUtc)
+    private string GetRelevantInstallFailure(DateTime attemptStartUtc, int exitCode)
     {
+        if (exitCode == ElevatedBootstrap.IdentityMismatch)
+            return "UAC approved a different Windows account. No setup changes were made.";
         try
         {
+            // A failed elevated script may never reach install.log. The separate
+            // bootstrap log contains the actual PowerShell error from THIS run.
+            if (File.Exists(ElevatedBootstrap.LogPath) &&
+                File.GetLastWriteTimeUtc(ElevatedBootstrap.LogPath) >= attemptStartUtc.AddSeconds(-2))
+            {
+                string raw = File.ReadAllText(ElevatedBootstrap.LogPath);
+                if (raw.Contains("running scripts is disabled", StringComparison.OrdinalIgnoreCase) ||
+                    raw.Contains("cannot be loaded because running scripts", StringComparison.OrdinalIgnoreCase))
+                    return "Windows blocked unsigned PowerShell scripts under its current execution policy. " +
+                        "The development installer cannot proceed without a trusted signed or native setup. " +
+                        "We will not ask you to lower Windows security. See Diagnostics for details.";
+                if (raw.Contains("not digitally signed", StringComparison.OrdinalIgnoreCase))
+                    return "The unsigned installer script was blocked by PowerShell signature policy. " +
+                        "See Diagnostics; do not bypass script policy.";
+                string excerpt = raw.Contains("[stderr]", StringComparison.Ordinal)
+                    ? raw.Split("[stderr]", StringSplitOptions.None).Last().Trim()
+                    : raw.Split('\n').LastOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim() ?? "";
+                if (!string.IsNullOrEmpty(excerpt))
+                    return excerpt.Length <= 550 ? excerpt : excerpt[^550..];
+            }
             if (!File.Exists(AppPaths.InstallLog) ||
                 File.GetLastWriteTimeUtc(AppPaths.InstallLog) < attemptStartUtc.AddSeconds(-2))
-                return "Windows did not start the installer or stopped it before logging. Check the account used for UAC approval.";
+                return "Elevated setup stopped before creating its installation log. Open Diagnostics to see the startup log.";
             var log = File.ReadLines(AppPaths.InstallLog).Reverse().FirstOrDefault(
                 line => line.Contains("INSTALL FAILED", StringComparison.OrdinalIgnoreCase));
             if (!string.IsNullOrWhiteSpace(log)) return log;
@@ -273,7 +296,7 @@ public partial class MainWindow : Window
                         return (last, modified);
                     } catch (IOException) { return ("The installer log is temporarily in use.", DateTime.MinValue); }
                 });
-                if (detail.Item2 != DateTime.MinValue) _lastLogTime = detail.Item2;
+                if (detail.Item2 >= _attemptStartUtc.AddSeconds(-2)) _lastLogTime = detail.Item2;
                 InstallDetailText.Text = detail.Item1;
                 if (DateTime.UtcNow - _lastLogTime > TimeSpan.FromSeconds(100))
                 {
