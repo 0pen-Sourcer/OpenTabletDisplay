@@ -167,23 +167,22 @@ public partial class MainWindow : Window
     {
         var s = _snapshot;
         bool baseReady = s is not null && SystemInspector.ReadyForUsb(s, _installing || _busy);
-        InstallButton.IsEnabled = !_installing && !_busy && AppPaths.InstallerScript is not null;
+        InstallButton.IsEnabled = !_installing && !_busy && NativePackage.Discover() is not null;
         CheckUsbButton.IsEnabled = baseReady && !_scanning;
         ScanDeviceButton.IsEnabled = baseReady && !_scanning;
         EnrollButton.IsEnabled = baseReady && !_scanning && DeviceList.SelectedItem is AndroidDevice d && d.State == "device";
         StartUsbButton.IsEnabled = baseReady;
         StopUsbButton.IsEnabled = !_installing && !_busy && s is { Installed: true, RuntimePresent: true };
         DoctorButton.IsEnabled = !_installing && !_busy && s is { RuntimePresent: true };
-        UninstallButton.IsEnabled = !_installing && !_busy && AppPaths.UninstallScript is not null;
+        UninstallButton.IsEnabled = !_installing && !_busy && File.Exists(AppPaths.InstallState);
     }
 
     private async void InstallButton_Click(object sender, RoutedEventArgs e)
     {
         if (_installing || _busy) return;
-        var script = AppPaths.InstallerScript;
-        if (script is null)
+        if (NativePackage.Discover() is null)
         {
-            Alert("The full installer is missing. Extract the complete packaged Windows ZIP; do not use GitHub's Source code ZIP.");
+            Alert("The extracted release is incomplete. Download the full Windows ZIP, not GitHub's Source code ZIP.");
             return;
         }
         try
@@ -191,7 +190,7 @@ public partial class MainWindow : Window
             // Remember the attempt time, so an old RC2 failure is never
             // presented as the outcome of a blocked UAC attempt.
             _attemptStartUtc = DateTime.UtcNow;
-            _installer = SafeCommands.StartElevatedInstaller(script);
+            _installer = SafeCommands.StartElevatedAction("--native-install");
             _installing = true;
             _lastLogTime = _attemptStartUtc;
             InstallProgress.Visibility = Visibility.Visible;
@@ -250,7 +249,7 @@ public partial class MainWindow : Window
             return "UAC approved a different Windows account. No setup changes were made.";
         try
         {
-            // A failed elevated script may never reach install.log. The separate
+            // An older setup attempt may never have reached install.log. The separate
             // bootstrap log contains the actual PowerShell error from THIS run.
             if (File.Exists(ElevatedBootstrap.LogPath) &&
                 File.GetLastWriteTimeUtc(ElevatedBootstrap.LogPath) >= attemptStartUtc.AddSeconds(-2))
@@ -518,8 +517,7 @@ public partial class MainWindow : Window
     private void UninstallButton_Click(object sender, RoutedEventArgs e)
     {
         if (_busy || _installing) return;
-        var script = AppPaths.UninstallScript;
-        if (script is null) { Alert("No installed integration was found."); return; }
+        if (!File.Exists(AppPaths.InstallState)) { Alert("No installed integration was found."); return; }
         if (MessageBox.Show(this,
                 "This will remove OpenTabletDisplay and restore only app-owned Sunshine settings. Existing Sunshine and virtual-display drivers will remain. After UAC approval the window will close so Windows can remove the application's files.\n\nContinue?",
                 "Uninstall OpenTabletDisplay", MessageBoxButton.YesNo, MessageBoxImage.Warning)
@@ -528,7 +526,7 @@ public partial class MainWindow : Window
         {
             // The GUI must exit before deleting its own executable. Do not run
             // hidden cmd.exe cleanup or falsely report success before setup exits.
-            using var process = SafeCommands.StartElevatedInstaller(script);
+            using var process = SafeCommands.StartElevatedAction("--native-remove");
             _timer.Stop();
             _closing = true;
             Application.Current.Shutdown();
