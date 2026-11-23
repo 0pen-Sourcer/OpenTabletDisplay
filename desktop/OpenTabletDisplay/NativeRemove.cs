@@ -93,10 +93,33 @@ internal static class NativeRemove
             // then schedule ONLY this exact EXE and empty parent for deletion
             // by Windows on the next restart. Do not spawn cmd.exe scripts.
             string liveExe=Path.GetFullPath(Environment.ProcessPath??"");
-            foreach(string file in Directory.EnumerateFiles(root,"*",SearchOption.AllDirectories))
+            var directories = new List<string>();
+            var files = new List<string>();
+            var pending = new Stack<string>();
+            pending.Push(root);
+            // Inspect each directory before entering it: SearchOption.AllDirectories
+            // would follow some junction types before a caller could reject them.
+            while (pending.Count > 0)
             {
-                if((File.GetAttributes(file)&FileAttributes.ReparsePoint)!=0)
-                {Log("Refusing reparse-point file: "+file);return Failed;}
+                var directory = pending.Pop();
+                if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException("Refusing to delete a redirected application directory.");
+                foreach (var file in Directory.EnumerateFiles(directory))
+                {
+                    if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0)
+                        throw new IOException("Refusing to delete a redirected application file.");
+                    files.Add(file);
+                }
+                foreach (var subdir in Directory.EnumerateDirectories(directory))
+                {
+                    if ((File.GetAttributes(subdir) & FileAttributes.ReparsePoint) != 0)
+                        throw new IOException("Refusing to follow an application folder junction.");
+                    directories.Add(subdir);
+                    pending.Push(subdir);
+                }
+            }
+            foreach(string file in files)
+            {
                 if(string.Equals(Path.GetFullPath(file),liveExe,StringComparison.OrdinalIgnoreCase))
                 {
                     if(!MoveFileEx(file,null,DelayUntilReboot))
@@ -107,14 +130,11 @@ internal static class NativeRemove
                 catch(IOException)
                 {
                     if(!MoveFileEx(file,null,DelayUntilReboot))
-                        throw new IOException("Failed to remove or schedule an application-owned file: "+Path.GetFileName(file));
+                        throw new IOException("Failed to remove an app-owned file: "+Path.GetFileName(file));
                 }
             }
-            foreach(string dir in Directory.EnumerateDirectories(root,"*",SearchOption.AllDirectories)
-                .OrderByDescending(x=>x.Length))
+            foreach(string dir in directories.OrderByDescending(x=>x.Length))
             {
-                if((File.GetAttributes(dir)&FileAttributes.ReparsePoint)!=0)
-                    throw new IOException("Cannot remove a junction inside application files.");
                 try {Directory.Delete(dir);}
                 catch(IOException)
                 {
