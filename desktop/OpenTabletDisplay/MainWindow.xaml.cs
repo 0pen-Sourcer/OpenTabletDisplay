@@ -28,6 +28,8 @@ public partial class MainWindow : Window
     private bool _installing;
     private bool _busy;
     private bool _sunshineBusy;
+    private string? _usbCurrentOperation;
+    private DateTime _usbOperationStartedUtc;
     private string _sunshineStartupMode = "Unavailable";
     private bool _refreshing;
     private bool _scanning;
@@ -433,6 +435,13 @@ public partial class MainWindow : Window
                 }
                 else InstallerWarning.Visibility = Visibility.Collapsed;
             }
+            else if (_usbCurrentOperation is string operation)
+            {
+                var elapsed = DateTime.UtcNow - _usbOperationStartedUtc;
+                UsbOperationStatus.Text = "Working on USB " + operation + " · " +
+                    elapsed.ToString(@"m\:ss") +
+                    " elapsed. Android may ask for permission; do not unplug the cable.";
+            }
             else if (!_refreshing)
             {
                 await RefreshAsync();
@@ -517,6 +526,10 @@ public partial class MainWindow : Window
             return;
         }
         _busy = true;
+        _usbCurrentOperation = command;
+        _usbOperationStartedUtc = DateTime.UtcNow;
+        UsbOperationStatus.Text = "Starting USB " + command + "…";
+        UsbOperationProgress.Visibility = Visibility.Visible;
         UpdateActions();
         Footer("Running USB " + command + "…");
         try
@@ -530,10 +543,16 @@ public partial class MainWindow : Window
                 string detail = result.Summary;
                 if (detail.Length > 1500) detail = detail[^1500..];
                 Alert("USB " + command + " failed (exit " + result.ExitCode + ").\n\n" + detail);
+                UsbOperationStatus.Text = "USB " + command + " failed. Check Diagnostics.";
                 Footer("USB " + command + " failed. See Diagnostics for detailed logs.");
             }
             else
             {
+                UsbOperationStatus.Text = command switch {
+                    "start" => "USB connection ready. Open Moonlight on the tablet.",
+                    "stop" => "USB connection stopped. The Windows installation is kept.",
+                    _ => "Tablet authorization saved."
+                };
                 Footer("USB " + command + " completed.");
                 if (command == "enroll") Alert("Device enrollment completed.", MessageBoxImage.Information);
             }
@@ -541,11 +560,14 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Alert("USB " + command + " could not finish:\n" + ex.Message);
+            UsbOperationStatus.Text = "USB " + command + " could not finish. Check Diagnostics.";
             Footer("USB " + command + " failed. No security protections were modified.");
         }
         finally
         {
+            _usbCurrentOperation = null;
             _busy = false;
+            UsbOperationProgress.Visibility = Visibility.Collapsed;
             UpdateActions();
         }
     }
