@@ -9,8 +9,8 @@
     <RootNamespace>OpenTabletDisplay</RootNamespace>
     <ApplicationIcon>../../assets/OpenTabletDisplay.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>3.3.0</Version>
-    <FileVersion>3.3.0.0</FileVersion>
+    <Version>3.4.0</Version>
+    <FileVersion>3.4.0.0</FileVersion>
     <Product>OpenTabletDisplay</Product>
     <Authors>OpenTabletDisplay contributors</Authors>
     <Company>OpenTabletDisplay</Company>
