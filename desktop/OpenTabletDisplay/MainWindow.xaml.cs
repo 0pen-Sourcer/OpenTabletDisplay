@@ -151,7 +151,7 @@ public partial class MainWindow : Window
             SunshineStatusText.Text = snapshot.Sunshine;
             SunshineReachabilityText.Text = snapshot.Sunshine switch
             {
-                "Running" when snapshot.SunshineListening => "Streaming endpoint responding · Moonlight can connect",
+                "Running" when snapshot.SunshineListening => "Sunshine's local streaming endpoint is responding",
                 "Running" => "Service running · waiting for the streaming endpoint",
                 "Service stopped" => "Streaming is off · select Start when needed",
                 _ => "Sunshine is unavailable · see Diagnostics"
