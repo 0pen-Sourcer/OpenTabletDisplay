@@ -53,7 +53,8 @@ internal static class SystemInspector
         string detail = !installed ? runtime ? "Setup was interrupted before completion."
             : "Run one-time setup to prepare Windows." :
             !runtime ? "USB runtime files are missing: repair required."
-            : sunshine != "Running" ? "Sunshine service needs attention."
+            : sunshine == "Service stopped" ? "Sunshine is off. Start it when you want to stream."
+            : sunshine != "Running" ? "Sunshine isn't available. Check its service."
             : driver != "Ready" ? "The Windows virtual-display driver needs attention."
             : "Windows dependencies are ready.";
         return new(installed, runtime, sunshine, driver, enrolled, host, detail, adb);
