@@ -245,39 +245,20 @@ public partial class MainWindow : Window
 
     private string GetRelevantInstallFailure(DateTime attemptStartUtc, int exitCode)
     {
-        if (exitCode == ElevatedBootstrap.IdentityMismatch)
-            return "UAC approved a different Windows account. No setup changes were made.";
+        if (exitCode == NativeSetup.IdentityMismatch)
+            return "Administrator approval used a different Windows account or did not grant an administrator token. No setup changes were made.";
         try
         {
-            // An older setup attempt may never have reached install.log. The separate
-            // bootstrap log contains the actual PowerShell error from THIS run.
-            if (File.Exists(ElevatedBootstrap.LogPath) &&
-                File.GetLastWriteTimeUtc(ElevatedBootstrap.LogPath) >= attemptStartUtc.AddSeconds(-2))
-            {
-                string raw = File.ReadAllText(ElevatedBootstrap.LogPath);
-                if (raw.Contains("running scripts is disabled", StringComparison.OrdinalIgnoreCase) ||
-                    raw.Contains("cannot be loaded because running scripts", StringComparison.OrdinalIgnoreCase))
-                    return "Windows blocked unsigned PowerShell scripts under its current execution policy. " +
-                        "The development installer cannot proceed without a trusted signed or native setup. " +
-                        "We will not ask you to lower Windows security. See Diagnostics for details.";
-                if (raw.Contains("not digitally signed", StringComparison.OrdinalIgnoreCase))
-                    return "The unsigned installer script was blocked by PowerShell signature policy. " +
-                        "See Diagnostics; do not bypass script policy.";
-                string excerpt = raw.Contains("[stderr]", StringComparison.Ordinal)
-                    ? raw.Split("[stderr]", StringSplitOptions.None).Last().Trim()
-                    : raw.Split('\n').LastOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim() ?? "";
-                if (!string.IsNullOrEmpty(excerpt))
-                    return excerpt.Length <= 550 ? excerpt : excerpt[^550..];
-            }
             if (!File.Exists(AppPaths.InstallLog) ||
                 File.GetLastWriteTimeUtc(AppPaths.InstallLog) < attemptStartUtc.AddSeconds(-2))
-                return "Elevated setup stopped before creating its installation log. Open Diagnostics to see the startup log.";
-            var log = File.ReadLines(AppPaths.InstallLog).Reverse().FirstOrDefault(
-                line => line.Contains("INSTALL FAILED", StringComparison.OrdinalIgnoreCase));
-            if (!string.IsNullOrWhiteSpace(log)) return log;
+                return "Native installation stopped before writing its log. Review Windows security or the extracted package.";
+            var lines = File.ReadLines(AppPaths.InstallLog).Reverse();
+            var error = lines.FirstOrDefault(line =>
+                line.Contains("INSTALL FAILED", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(error)) return error;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {}
-        return "See installation and dependency logs for the cause.";
+        return "Native setup exited with code " + exitCode + ". See Diagnostics for details.";
     }
 
     private async Task TickAsync()
