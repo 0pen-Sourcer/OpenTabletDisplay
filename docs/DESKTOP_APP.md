@@ -47,6 +47,12 @@ Stopping Sunshine disconnects any active Moonlight stream but does not uninstall
 
 Open **Diagnostics**, inspect the latest installation and USB preparation error, and check AVG/Defender protection history for the exact affected executable. Determine whether the event was a scan, a quarantine, a suspicious-behavior detection, or a final malware verdict before attempting any retry. A blocked executable should not be force-run.
 
+## Remove OpenTabletDisplay vs remove Sunshine
+
+**Remove OpenTabletDisplay only** unregisters its background agent and USB integration, restores app-owned Sunshine configuration entries, and deletes its own files. It **deliberately preserves Sunshine and Virtual Display Driver**, even if the app originally installed them, since other Moonlight/Windows workflows may rely on them. Sunshine can continue running and sending notifications. Deleting the extracted ZIP is not an uninstall of third-party components.
+
+For full removal, use **Windows Settings → Apps → Installed apps → Sunshine → Uninstall** separately, and only remove the specific virtual-display driver after verifying no other app needs it. The native app links to Windows Installed apps and explicitly explains what remains. A verified, opt-in full-cleanup wizard is tracked in [issue #16](https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/16); the current release does not claim to provide that automatically.
+
 ## Stable release gate
 
 1. Windows CI builds a self-contained WPF EXE, runs its offline window/serial/redaction smoke test and Sunshine-action account-identity guards, checks exact package files and embedded icon, and verifies SHA-256.
