@@ -520,6 +520,13 @@ internal static class NativeSetup
 
     public static void SelfTest()
     {
+        // When invoked from the actual extracted Windows ZIP, validate that
+        // the native package verifier agrees with the published manifest.
+        if(NativePackage.Discover() is string root)
+        {
+            var package=new NativePackage(root);
+            foreach(var file in package.Entries)package.RequireVerified(file);
+        }
         var original=new[]{"encoder = nvenc","custom_option = keep","dd_resolution_option = manual"};
         var applied=SunshineConfiguration.Apply(original,"{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}");
         if(!SunshineConfiguration.Get(applied.lines,"output_name").present)
