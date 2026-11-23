@@ -49,9 +49,15 @@ Open **Diagnostics**, inspect the latest installation and USB preparation error,
 
 ## Remove OpenTabletDisplay vs remove Sunshine
 
-**Remove OpenTabletDisplay only** unregisters its background agent and USB integration, restores app-owned Sunshine configuration entries, and deletes its own files. It **deliberately preserves Sunshine and Virtual Display Driver**, even if the app originally installed them, since other Moonlight/Windows workflows may rely on them. Sunshine can continue running and sending notifications. Deleting the extracted ZIP is not an uninstall of third-party components.
+Clicking **Preferences & help → Choose components…** opens a native selection dialog instead of immediately uninstalling. The Windows Installed apps entry opens the same uninstall section.
 
-For full removal, use **Windows Settings → Apps → Installed apps → Sunshine → Uninstall** separately, and only remove the specific virtual-display driver after verifying no other app needs it. The native app links to Windows Installed apps and explicitly explains what remains. A verified, opt-in full-cleanup wizard is tracked in [issue #16](https://github.com/0pen-Sourcer/OpenTabletDisplay/issues/16); the current release does not claim to provide that automatically.
+- **OpenTabletDisplay & USB integration (checked, required):** Remove the desktop app, reconnect agent, owned local files and restore only app-changed Sunshine settings.
+- **Sunshine (unchecked, optional):** The checkbox becomes available only if the installation record claims ownership AND Windows Installer confirms a single matching pinned-version Sunshine MSI. Removal invokes the MSI by its exact verified product GUID, not a registry-supplied arbitrary command. It disconnects Moonlight streams and may require a restart.
+- **Virtual display device (unchecked, optional):** Available only when installation records identify specific VDD device instance IDs that Windows still reports with the expected driver hardware ID. Only those exact devices are removed. The shared Windows driver package may remain.
+- **Unknown or previously installed dependencies:** Their checkboxes are disabled with an explanation. Users can manage them independently in Windows Settings; this app will not guess ownership.
+- A **second confirmation** lists exactly what will be removed and kept before an administrator-approved native operation. No downloaded ZIPs are removed from Downloads.
+
+Uninstalling OpenTabletDisplay alone does **not** stop or remove Sunshine. It may continue sending notifications until the user stops it or explicitly opts into eligible removal. Because Sunshine and display drivers can also serve other programs, their removal is never automatic. This selector is a test candidate and still needs on-device validation.
 
 ## Stable release gate
 
