@@ -1,15 +1,20 @@
 param(
     [switch]$Elevated,
-    [switch]$RemoveDependencies
+    [switch]$RemoveDependencies,
+    [string]$ExpectedUserSid = ''
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 if (-not (Test-FSDLAdmin)) {
-    $args = @('-Elevated')
+    if (-not $ExpectedUserSid) { $ExpectedUserSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value }
+    $args = @('-Elevated', '-ExpectedUserSid', $ExpectedUserSid)
     if ($RemoveDependencies) { $args += '-RemoveDependencies' }
     exit (Invoke-FSDLElevatedSelf $PSCommandPath $args)
 }
+
+# Never remove a different Windows account's application state.
+Assert-FSDLInstallerIdentity $ExpectedUserSid
 
 $logPath = Join-Path $script:InstallRoot 'logs\uninstall.log'
 Write-FSDLLog 'Starting OpenTabletDisplay uninstall.' $logPath
