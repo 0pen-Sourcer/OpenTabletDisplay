@@ -351,7 +351,7 @@ public partial class MainWindow : Window
 
     private async void StopSunshine_Click(object sender, RoutedEventArgs e)
     {
-        if (_busy || _installing || _sunshineBusy) return;
+        if (_busy || _installing || _sunshineBusy || _displayBusy) return;
         if (MessageBox.Show(this,
                 "Stop Sunshine? This disconnects the current Moonlight stream. " +
                 "Your tablet pairing, USB setup and virtual-display driver stay installed.",
@@ -368,7 +368,7 @@ public partial class MainWindow : Window
 
     private async Task RunSunshineActionAsync(string action)
     {
-        if (_installing || _busy || _sunshineBusy ||
+        if (_installing || _busy || _sunshineBusy || _displayBusy ||
             !SunshineServiceControl.IsAllowed(action)) return;
         if (_snapshot is not { Installed: true } ||
             _snapshot.Sunshine is not ("Running" or "Service stopped"))
@@ -440,7 +440,7 @@ public partial class MainWindow : Window
 
     private async void InstallButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_installing || _busy || _sunshineBusy) return;
+        if (_installing || _busy || _sunshineBusy || _displayBusy) return;
         if (NativePackage.Discover() is null)
         {
             Alert("The extracted release is incomplete. Download the full Windows ZIP, not GitHub's Source code ZIP.");
@@ -564,8 +564,8 @@ public partial class MainWindow : Window
     private async void CheckUsbButton_Click(object sender, RoutedEventArgs e) => await ScanDevicesAsync();
     private async Task ScanDevicesAsync()
     {
-        if (_scanning || _installing || _busy || _sunshineBusy || _snapshot is null ||
-            !SystemInspector.ReadyForUsb(_snapshot, _installing || _busy || _sunshineBusy))
+        if (_scanning || _installing || _busy || _sunshineBusy || _displayBusy || _snapshot is null ||
+            !SystemInspector.ReadyForUsb(_snapshot, _installing || _busy || _sunshineBusy || _displayBusy))
         {
             Footer("Finish Windows installation before checking the USB transport.");
             return;
@@ -626,12 +626,12 @@ public partial class MainWindow : Window
 
     private async Task RunTransportCommandAsync(string command, string? serial = null)
     {
-        if (_busy || _installing || _sunshineBusy || _snapshot is not { Installed: true, RuntimePresent: true })
+        if (_busy || _installing || _sunshineBusy || _displayBusy || _snapshot is not { Installed: true, RuntimePresent: true })
         {
             Alert("Windows setup is still running or incomplete. Finish setup before using the USB transport.");
             return;
         }
-        if (command != "stop" && !SystemInspector.ReadyForUsb(_snapshot, _installing || _busy || _sunshineBusy))
+        if (command != "stop" && !SystemInspector.ReadyForUsb(_snapshot, _installing || _busy || _sunshineBusy || _displayBusy))
         {
             Alert("Sunshine, USB tools or the virtual-display driver is not ready. Run diagnostics before starting a connection.");
             return;
@@ -685,7 +685,7 @@ public partial class MainWindow : Window
 
     private async void DoctorButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_busy || _installing || _sunshineBusy || !File.Exists(AppPaths.RuntimeExe)) return;
+        if (_busy || _installing || _sunshineBusy || _displayBusy || !File.Exists(AppPaths.RuntimeExe)) return;
         _busy = true;
         UpdateActions();
         Footer("Running local connection diagnostics…");
@@ -778,7 +778,7 @@ public partial class MainWindow : Window
 
     private void UninstallButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_busy || _installing || _sunshineBusy) return;
+        if (_busy || _installing || _sunshineBusy || _displayBusy) return;
         if (!File.Exists(AppPaths.InstallState)) { Alert("No installed integration was found."); return; }
         if (MessageBox.Show(this,
                 "This will remove OpenTabletDisplay and restore only app-owned Sunshine settings. Existing Sunshine and virtual-display drivers will remain. After UAC approval the window will close so Windows can remove the application's files.\n\nContinue?",
