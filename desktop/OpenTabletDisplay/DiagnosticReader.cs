@@ -16,8 +16,8 @@ internal static class DiagnosticReader
         report.AppendLine("No diagnostic information has been uploaded.");
         report.AppendLine(new string('─', 57));
         foreach (var (name, file) in new[] {
-            ("Elevated setup startup", ElevatedBootstrap.LogPath),
             ("Installation", AppPaths.InstallLog),
+            ("Previous elevated script startup (historical)", ElevatedBootstrap.LogPath),
             ("USB dependency stdout", Path.Combine(AppPaths.LogsDirectory, "prepare-stdout.txt")),
             ("USB dependency stderr", Path.Combine(AppPaths.LogsDirectory, "prepare-stderr.txt")),
             ("USB connection stdout", Path.Combine(AppPaths.LogsDirectory, "manual-start.txt")),
