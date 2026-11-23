@@ -9,7 +9,7 @@ $Package = 'OpenTabletDisplay-' + $Version + '-windows-x64'
 $DistRoot = Join-Path $Root 'dist'
 $Out = Join-Path $DistRoot $Package
 Remove-Item -LiteralPath $DistRoot -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path (Join-Path $Out 'payload\probes'), (Join-Path $Out 'installer') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $Out 'payload\probes') | Out-Null
 
 Write-Host '[1/8] Validate PowerShell installer scripts'
 $parseErrors = @()
@@ -61,10 +61,8 @@ try {
 } finally { Remove-Item -LiteralPath $publish -Recurse -Force -ErrorAction SilentlyContinue }
 
 Write-Host '[6/8] Assemble Windows package'
-Get-ChildItem installer -Filter '*.ps1' -File | Where-Object { $_.Name -ne 'desktop.ps1' } | Copy-Item -Destination (Join-Path $Out 'installer') -Force
 New-Item -ItemType Directory -Force -Path (Join-Path $Out 'assets') | Out-Null
 Copy-Item assets/OpenTabletDisplay.ico,assets/OpenTabletDisplay.png (Join-Path $Out 'assets')
-Copy-Item install.cmd,status.cmd,reset-device.cmd,uninstall.cmd $Out
 Copy-Item README.md,LICENSE,THIRD_PARTY_NOTICES.md $Out
 New-Item -ItemType Directory -Force -Path (Join-Path $Out 'docs') | Out-Null
 Copy-Item docs/DESKTOP_APP.md,docs/COMPATIBILITY.md,docs/MOONLIGHT.md,docs/TROUBLESHOOTING.md (Join-Path $Out 'docs')
