@@ -30,7 +30,10 @@ public partial class App : Application
                 return;
             }
             int result = await NativeRemove.RunAsync(e.Args[1], removeSunshine, removeDriver);
-            MessageBox.Show(
+            // A failed identity/ownership preflight must exit cleanly without
+            // a blocking UI dialog (also required for headless CI validation).
+            if (NativeRemove.LastLogPath is not null)
+                MessageBox.Show(
                 result == 0
                     ? "OpenTabletDisplay removal completed. A Windows restart may finish deleting files that were open."
                     : "Removal could not be completed. Some selected changes might already have taken effect. Review the details at:\n" +
