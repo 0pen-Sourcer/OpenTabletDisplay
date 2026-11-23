@@ -96,6 +96,16 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Guard native UAC error reporting and policy preservation
+        shell: powershell
+        run: |
+          $bootstrap = Get-Content desktop/OpenTabletDisplay/ElevatedBootstrap.cs -Raw
+          $controller = Get-Content desktop/OpenTabletDisplay/MainWindow.xaml.cs -Raw
+          $runner = Get-Content desktop/OpenTabletDisplay/SafeCommands.cs -Raw
+          if ($bootstrap -notmatch 'RedirectStandardError = true') { throw 'Elevated bootstrap must capture PowerShell stderr.' }
+          if ($bootstrap -match 'ExecutionPolicy.*Bypass|Set-ExecutionPolicy|Unblock-File') { throw 'Policy bypass in elevated bootstrap.' }
+          if ($runner -notmatch 'ElevatedBootstrap.Argument') { throw 'Native elevated bootstrap was not wired.' }
+          if ($controller -notmatch 'GetRelevantInstallFailure\(_attemptStartUtc, exit\)') { throw 'New installation errors may be confused with stale logs.' }
       - name: Build and inspect the native Windows application
         shell: powershell
         run: |
