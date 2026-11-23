@@ -1,6 +1,6 @@
 # OpenTabletDisplay 3.4 native setup preview
 
-OpenTabletDisplay's everyday desktop interface is now a **compiled, self-contained .NET 10 WPF executable**. It is not a PowerShell-hosted window. Users need no separate .NET installation. The app starts as a normal Windows user; only installer and uninstaller operations request Windows administrator approval.
+OpenTabletDisplay's everyday desktop interface is now a **compiled, self-contained .NET 10 WPF executable**. It is not a PowerShell-hosted window. Users need no separate .NET installation. The app starts as a normal Windows user; the installer and uninstaller request Windows administrator approval. Sunshine service controls try existing Windows permissions first and request UAC only when Windows requires it.
 
 ## First launch
 
@@ -16,20 +16,20 @@ After setup, normal use should be cable → Android authorization (if necessary)
 
 ## Native Windows controls
 
-- **Overview:** Windows installation completeness, Sunshine service state, exact ROOT\MttVDD driver hardware ID, Android enrollment, actual host address.
+- **Overview:** installation completeness, **Start/Stop Sunshine** controls, Sunshine service state, exact ROOT\MttVDD driver hardware ID, Android enrollment, and host address.
 - **Set up & connect:** elevated setup, non-fake progress, Android permissions and Moonlight onboarding.
 - **My devices:** asynchronous, bounded USB device scans, explicit serial validation and enrollment; one USB action at a time.
 - **Diagnostics:** bounded local log reads and connection doctor, never automatically uploaded, opt-in sanitized export.
-- **Preferences & help:** explicit security limitations, trusted support links and guarded uninstall.
+- **Preferences & help:** separate Start/Stop Sunshine controls; choose **Start automatically** (with Windows) or **Start manually** (only when requested); trusted support links, diagnostics and guarded uninstall.
 
-The app is single-instance and does not start the USB transport merely because its executable is double-clicked. The separate FSDL runtime is not intended for direct use by consumers. A bare FSDL.exe invocation displays help only.
+Stopping Sunshine disconnects any active Moonlight stream but does not uninstall the display driver, clear Moonlight pairing, or erase Android enrollment. Selecting Manual startup does not stop an already-running stream. The app is single-instance and does not start the USB transport merely because its executable is double-clicked. The separate FSDL runtime is not intended for direct use by consumers. A bare FSDL.exe invocation displays help only.
 
 ## Security commitments
 
 - No AVG/Defender disabling, antivirus exclusions, quarantine restores, security bypass, silent Android RSA trust, or silent VPN permissions.
 - The user-facing GUI **and administrator-approved setup/uninstall path** are implemented in compiled .NET 10 code. The packaged Windows ZIP contains no PowerShell or batch installer scripts. Native setup verifies pinned hashes, requires Windows-trusted upstream signatures, and refuses account-identity mismatches. Windows PowerShell execution policy is neither inspected nor altered during setup.
 - Exact pinned download SHA-256 checks and valid upstream signatures where supplied; local package manifest verifies extraction integrity.
-- Main app runs unelevated; UAC is user-triggered. Commands execute through fixed paths and .NET argument lists, not arbitrary shell strings.
+- Main app runs unelevated; UAC is user-triggered. Sunshine Start/Stop and Manual/Automatic actions are restricted to the exact `SunshineService` service and refuse different-account elevation. Startup settings do not stop or start Sunshine implicitly. Commands use fixed native APIs and .NET argument lists, not arbitrary shell strings.
 - No remote telemetry, personal data uploads or cloud login. Logs can contain local device information; exported reports have basic redaction but must still be reviewed.
 - **Unsigned apps may legitimately be quarantined for review.** Passing CI or hash checks does NOT override a security product's verdict and does NOT establish trusted publisher identity.
 - Code signing and independent security verification are required before publicly promoting a stable release.
@@ -48,7 +48,7 @@ Open **Diagnostics**, inspect the latest installation and USB preparation error,
 
 ## Stable release gate
 
-1. Windows CI builds a self-contained WPF EXE, runs its offline window/serial/redaction smoke test, checks exact package files and embedded icon, and verifies SHA-256.
+1. Windows CI builds a self-contained WPF EXE, runs its offline window/serial/redaction smoke test and Sunshine-action account-identity guards, checks exact package files and embedded icon, and verifies SHA-256.
 2. Real Windows 10/11 install and uninstall (including existing Sunshine) without settings loss, standard-user account tests, accessibility and scaling checks.
 3. Real Android USB authorization, gnirehtet/VPN permission, Moonlight stream, touch, resolution, sleep/reconnect and multiple-device tests.
 4. Trusted code signing for OpenTabletDisplay.exe, FSDL.exe AND FSDL-Agent.exe, plus documented source/build provenance and security review.
