@@ -234,10 +234,13 @@ internal static class NativeSetup
             // Check a verified helper copy in the same application directory
             // BEFORE stopping the user's existing background agent. The helper
             // locates its runtime files relative to its own directory.
-            string preflight=Path.Combine(AppPaths.Root,"FSDL-preflight.exe");
-            if(File.Exists(preflight))File.Delete(preflight);
-            File.Copy(package.PathOf("payload/FSDL.exe"),preflight);
-            log.Write("Checking the new USB transport before replacing existing components.");
+            string preflight=old is null ? AppPaths.RuntimeExe
+                : Path.Combine(AppPaths.Root,"FSDL-preflight.exe");
+            string verifiedHelper=package.PathOf("payload/FSDL.exe");
+            if(!File.Exists(preflight) ||
+                PinnedDownload.Hash(preflight)!=PinnedDownload.Hash(verifiedHelper))
+                File.Copy(verifiedHelper,preflight,true);
+            log.Write("Checking the verified USB transport before installing Windows dependencies.");
             // Preflight all USB binaries BEFORE changing Sunshine, drivers, or
             // overwriting the previous installed transport. A blocked preview
             // must never disable an existing working installation.
@@ -267,7 +270,8 @@ internal static class NativeSetup
                     "USB dependency preparation could not complete. Check AVG/Defender verdict and prepare-stderr.txt. "+
                     ex.Message,ex);
             }
-            if(File.Exists(preflight))File.Delete(preflight);
+            if(!string.Equals(preflight,AppPaths.RuntimeExe,StringComparison.OrdinalIgnoreCase)
+                && File.Exists(preflight))File.Delete(preflight);
             await StopPriorAgentAsync(log);
             CopyRuntime(package,log);
             bool sunAlready=SunshineSetup.HasService();
