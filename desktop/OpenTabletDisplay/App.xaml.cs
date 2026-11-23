@@ -10,10 +10,19 @@ public partial class App : Application
 {
     private Mutex? _singleInstance;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         DispatcherUnhandledException += OnApplicationException;
         base.OnStartup(e);
+        if (e.Args.Length == 2 &&
+            string.Equals(e.Args[0], ElevatedBootstrap.Argument, StringComparison.Ordinal))
+        {
+            // This fixed-purpose UAC helper has no user-facing WPF window.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            int result = await ElevatedBootstrap.RunAsync(e.Args[1]);
+            Shutdown(result);
+            return;
+        }
         if (e.Args.Contains("--selftest", StringComparer.OrdinalIgnoreCase))
         {
             try
