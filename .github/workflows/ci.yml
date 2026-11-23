@@ -142,6 +142,22 @@ jobs:
             }
             if ($deny.ExitCode -ne 73) { throw ('Expected identity mismatch exit 73, got ' + $deny.ExitCode) }
           } finally { $deny.Dispose() }
+          # An explicit multi-component removal must still reject wrong-account
+          # elevation BEFORE reading ownership or touching any services.
+          $remove = Start-Process -FilePath $appExe -ArgumentList @(
+            '--native-remove','S-1-5-18','--remove-owned-sunshine','--remove-owned-virtual-device') -PassThru
+          try {
+            if (-not $remove.WaitForExit(25000)) { $remove.Kill(); throw 'Native removal identity guard timed out.' }
+            if ($remove.ExitCode -ne 73) { throw ('Uninstall identity guard failed: ' + $remove.ExitCode) }
+          } finally { $remove.Dispose() }
+          # Unknown removal options must fail before any file/service operation.
+          $mySid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          $invalid = Start-Process -FilePath $appExe -ArgumentList @(
+            '--native-remove',$mySid,'--delete-system-drivers') -PassThru
+          try {
+            if (-not $invalid.WaitForExit(25000)) { $invalid.Kill(); throw 'Invalid removal option guard timed out.' }
+            if ($invalid.ExitCode -ne 76) { throw ('Unknown removal option accepted: ' + $invalid.ExitCode) }
+          } finally { $invalid.Dispose() }
           # Sunshine control commands must reject a different account before
           # reading or modifying any Windows service settings.
           foreach ($action in @('--sunshine-start','--sunshine-stop','--sunshine-automatic','--sunshine-manual')) {
