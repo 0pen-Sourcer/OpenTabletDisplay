@@ -61,7 +61,7 @@
                                     <TextBlock x:Name="HeroHeading" Text="Make room for more." FontSize="26" FontWeight="SemiBold" Margin="0,11,0,9"/>
                                     <TextBlock x:Name="HeroDescription" Text="Turn your Android tablet into an extended Windows display over USB." Style="{StaticResource Muted}" FontSize="14" Foreground="#BDD3F1" MaxWidth="500"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
-                                        <Button Content="Set up my display" Style="{StaticResource PrimaryButton}" Click="GoSetup_Click" Margin="0,0,10,0"/>
+                                        <Button x:Name="HeroPrimaryButton" Content="Set up my display" Style="{StaticResource PrimaryButton}" Click="HeroPrimary_Click" Margin="0,0,10,0"/>
                                         <Button Content="View diagnostics" Style="{StaticResource SecondaryButton}" Click="GoDiagnostics_Click"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -83,7 +83,7 @@
                                 <StackPanel>
                                     <TextBlock Text="SUNSHINE" Style="{StaticResource Eyebrow}"/>
                                     <TextBlock x:Name="SunshineStatusText" Text="Checking…" FontSize="20" FontWeight="SemiBold" Margin="0,10,0,5"/>
-                                    <TextBlock Text="Controls your Moonlight stream" Style="{StaticResource Muted}"/>
+                                    <TextBlock x:Name="SunshineReachabilityText" Text="Checking the local streaming endpoint…" Style="{StaticResource Muted}"/>
                                     <WrapPanel Margin="0,13,0,0">
                                         <Button x:Name="SunshineStartButton" Content="Start" Style="{StaticResource PrimaryButton}" Click="StartSunshine_Click" Margin="0,0,8,0" IsEnabled="False"/>
                                         <Button x:Name="SunshineStopButton" Content="Stop" Style="{StaticResource SecondaryButton}" Click="StopSunshine_Click" IsEnabled="False"/>
@@ -112,8 +112,8 @@
                         <Border Style="{StaticResource Card}" Margin="0,0,0,18">
                             <StackPanel>
                                 <TextBlock Text="01   PREPARE WINDOWS" Style="{StaticResource Eyebrow}"/>
-                                <TextBlock Text="Install OpenTabletDisplay" Style="{StaticResource Heading}" Margin="0,11,0,8"/>
-                                <TextBlock Text="Install and configure Sunshine and the display driver. Windows will request administrator approval. Existing settings will be preserved where possible." Style="{StaticResource Muted}"/>
+                                <TextBlock x:Name="SetupStepHeading" Text="Install OpenTabletDisplay" Style="{StaticResource Heading}" Margin="0,11,0,8"/>
+                                <TextBlock x:Name="SetupStepDescription" Text="Install and configure Sunshine and the display driver. Windows will request administrator approval. Existing settings will be preserved where possible." Style="{StaticResource Muted}"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
                                     <Button x:Name="InstallButton" Content="Install / repair" Style="{StaticResource PrimaryButton}" Click="InstallButton_Click" Margin="0,0,10,0"/>
                                     <Button Content="Inspect installer log" Style="{StaticResource SecondaryButton}" Click="GoDiagnostics_Click"/>
