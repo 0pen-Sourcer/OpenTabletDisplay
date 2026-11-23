@@ -23,6 +23,13 @@ public partial class App : Application
             Shutdown(result);
             return;
         }
+        if (e.Args.Length == 2 && SunshineDisplayPreference.IsAllowed(e.Args[0]))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            int result = await SunshineDisplayPreference.RunAsync(e.Args[0],e.Args[1]);
+            Shutdown(result);
+            return;
+        }
         if (e.Args.Length == 2 && SunshineServiceControl.IsAllowed(e.Args[0]))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -42,6 +49,12 @@ public partial class App : Application
                 if (sanitized.Contains("veryprivate") || sanitized.Contains("192.168.1.1"))
                     throw new InvalidOperationException("Diagnostic redaction regression.");
                 NativeSetup.SelfTest();
+                if (!SunshineDisplayPreference.IsAllowed(SunshineDisplayPreference.KeepPcPrimary) ||
+                    !SunshineDisplayPreference.IsAllowed(SunshineDisplayPreference.MakeTabletPrimary) ||
+                    SunshineDisplayPreference.IsAllowed("--sunshine-delete-display") ||
+                    SunshineDisplayPreference.ModeForAction(SunshineDisplayPreference.KeepPcPrimary)!="ensure_active" ||
+                    SunshineDisplayPreference.ModeForAction(SunshineDisplayPreference.MakeTabletPrimary)!="ensure_primary")
+                    throw new InvalidOperationException("Display preference allowlist regression.");
                 if (!SunshineServiceControl.IsAllowed(SunshineServiceControl.Start) ||
                     !SunshineServiceControl.IsAllowed(SunshineServiceControl.Stop) ||
                     !SunshineServiceControl.IsAllowed(SunshineServiceControl.Automatic) ||
