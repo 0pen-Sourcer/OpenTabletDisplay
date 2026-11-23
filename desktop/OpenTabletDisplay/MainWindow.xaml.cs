@@ -97,7 +97,7 @@ public partial class MainWindow : Window
         var labels = name switch {
             "Overview" => ("YOUR WORKSPACE", "Overview", "Your second monitor, without a second monitor."),
             "Setup" => ("GET STARTED", "Set up & connect", "Every step visible. Every permission intentional."),
-            "Devices" => ("USB DEVICE WORKSPACE", "My devices", "Authorize, select and reconnect your Android screen."),
+            "Devices" => ("ANDROID DEVICES", "My devices", "Select an authorized Android device for the USB connection."),
             "Diagnostics" => ("SYSTEM INSIGHT", "Diagnostics", "Useful errors and complete local control."),
             _ => ("PREFERENCES", "Controls & help", "Reliable settings, transparent security.")
         };
@@ -140,7 +140,7 @@ public partial class MainWindow : Window
             AppDetailText.Text = snapshot.Detail;
             SunshineStatusText.Text = snapshot.Sunshine;
             DriverStatusText.Text = snapshot.Driver;
-            AndroidStatusText.Text = snapshot.Enrolled ? "Enrolled" : "Not paired";
+            AndroidStatusText.Text = snapshot.Enrolled ? "USB device enrolled" : "No USB device enrolled";
             HostAddressText.Text = string.IsNullOrEmpty(snapshot.Host) ? "Not yet connected" : snapshot.Host;
 
             var ready = snapshot.WindowsReady && snapshot.RuntimePresent;
