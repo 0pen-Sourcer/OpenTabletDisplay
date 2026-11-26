@@ -776,29 +776,63 @@ public partial class MainWindow : Window
         else Alert("The app has not yet been installed.");
     }
 
-    private void UninstallButton_Click(object sender, RoutedEventArgs e)
+    private async void UninstallButton_Click(object sender, RoutedEventArgs e)
     {
         if (_busy || _installing || _sunshineBusy || _displayBusy) return;
-        if (!File.Exists(AppPaths.InstallState)) { Alert("No installed integration was found."); return; }
+        if (!File.Exists(AppPaths.InstallState))
+        {
+            Alert("No installed OpenTabletDisplay integration was found.");
+            return;
+        }
+        _busy = true;
+        UpdateActions();
+        RemovalCapabilities available;
+        try { available = await Task.Run(RemovalSelection.Inspect); }
+        catch (Exception ex)
+        {
+            Alert("Unable to inspect installed components: " + ex.Message);
+            _busy = false;
+            UpdateActions();
+            return;
+        }
+        _busy = false;
+        UpdateActions();
+
+        var picker = new UninstallSelectionWindow(available) { Owner = this };
+        if (picker.ShowDialog() != true) return;
+        bool sunshine = picker.RemoveSunshine;
+        bool driver = picker.RemoveDriver;
+        if (!RemovalSelection.Validate(sunshine, driver, out var reason))
+        {
+            Alert(reason + "\nNo components have been removed.");
+            return;
+        }
+        string selected = "• OpenTabletDisplay app, USB agent, local files and app-owned settings";
+        if (sunshine) selected += "\n• Owned Sunshine installation (Moonlight streaming will stop)";
+        if (driver) selected += "\n• Owned virtual display device (active Moonlight streams will end; driver package may remain)";
+        string kept = (sunshine ? "" : "\nSunshine will remain installed.") +
+                      (driver ? "" : "\nThe virtual-display driver will remain installed.");
         if (MessageBox.Show(this,
-                "Remove OpenTabletDisplay, its USB integration, and its background tasks?\n\n" +
-                "Sunshine and Virtual Display Driver will REMAIN INSTALLED. Sunshine may continue running and showing notifications after this app is removed.\n\n" +
-                "To remove Sunshine too, uninstall it separately from Windows Installed apps.\n\nContinue?",
-                "Uninstall OpenTabletDisplay", MessageBoxButton.YesNo, MessageBoxImage.Warning)
-            != MessageBoxResult.Yes) return;
+                "Remove the following components?\n\n" + selected + "\n" + kept +
+                "\n\nAdministrator approval is required. This can't be undone automatically.",
+                "Confirm component removal", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+
+        var flags = new List<string>();
+        if (sunshine) flags.Add(RemovalSelection.SunshineFlag);
+        if (driver) flags.Add(RemovalSelection.DriverFlag);
         try
         {
-            // The GUI must exit before deleting its own executable. Do not run
-            // hidden cmd.exe cleanup or falsely report success before setup exits.
-            using var process = SafeCommands.StartElevatedAction("--native-remove");
+            using var process = SafeCommands.StartElevatedAction("--native-remove", flags);
+            // The installed GUI must close to allow its own EXE to be removed.
             _timer.Stop();
             _closing = true;
             Application.Current.Shutdown();
         }
         catch (Exception ex)
         {
-            Alert("Could not start uninstall: " + ex.Message +
-                  "\nNo security restrictions were changed.");
+            Alert("Could not start removal: " + ex.Message +
+                "\nNo security restrictions were changed.");
         }
     }
 
