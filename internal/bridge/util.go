@@ -25,6 +25,9 @@ type OSRunner struct{}
 
 func (OSRunner) Run(ctx context.Context, name string, args ...string) (string, string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	// The USB daemon runs as a GUI-subsystem executable. Its periodic
+	// PowerShell/ADB probes must not create a visible Windows console.
+	prepareHidden(cmd)
 	var out, er strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &er
