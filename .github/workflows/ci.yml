@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, feat/selective-uninstall-dialog]
   pull_request:
   workflow_dispatch:
 
@@ -210,3 +210,42 @@ jobs:
             dist/OpenTabletDisplay-*-windows-x64.zip
             dist/OpenTabletDisplay-*-windows-x64.zip.sha256
           if-no-files-found: error
+  rc4-prerelease:
+    name: Publish unsigned RC4 QA prerelease
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/selective-uninstall-dialog'
+    needs: [go, powershell]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Retrieve verified Windows ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: OpenTabletDisplay-Native-Setup-RC4
+          path: release-assets
+      - name: Verify checksums and publish RC4 prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip=$(find release-assets -type f -name 'OpenTabletDisplay-*-windows-x64.zip' -print -quit)
+          test -n "$zip"
+          checksum="${zip}.sha256"
+          test -f "$checksum"
+          ( cd "$(dirname "$zip")" && sha256sum -c "$(basename "$checksum")" )
+          cat > release-notes.md <<'EOF'
+          UNSIGNED QA PREVIEW — OpenTabletDisplay 3.4 RC4.
+          
+          Fix: prevent recurring PowerShell console flashes from the FSDL-Agent background USB polling loop.
+          Includes native WPF setup, selective component removal, and SHA-256 checksums.
+          
+          NOT A STABLE RELEASE. Automated Go and Windows CI passed before publication, but real-device
+          pairing, physical display/driver installation and uninstall, and antivirus compatibility
+          still require validation. Do not bypass Windows/antivirus warnings or driver-signature checks.
+          EOF
+          gh release create v3.4.0-rc.4 "$zip" "$checksum" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title 'OpenTabletDisplay 3.4 RC4 (unsigned QA prerelease)' \
+            --prerelease --notes-file release-notes.md
